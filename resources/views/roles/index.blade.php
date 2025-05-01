@@ -1,10 +1,10 @@
 @extends('layouts.app')
 
 @section('content')
-    <div class="container px-2">
+    <div class="container-fluid">
         <div class="row">
             <!-- Column starts -->
-            <div class="col-xl-12 px-0">
+            <div class="col-md-12">
                 <div class="card dz-card" id="accordion-one">
                     <div class="card-header flex-wrap">
                         <div>

@@ -1,4 +1,3 @@
-// resources/views/permissions/assign.blade.php
 @extends('layouts.app')
 
 @section('content')
@@ -35,27 +34,38 @@
                         </div>
 
                         <div id="permissionSection">
-                            <h4 class="mb-3">Permissions for: <span id="roleName" class="text-primary">All Roles</span></h4>
+                            <div class="d-flex align-items-center mb-3">
+                                <h4 class="mb-0 mr-2">Permissions for:</h4>
+                                <div class="d-flex align-items-center">
+                                    <span id="roleName" class="text-primary font-weight-bold" style="margin-right: 5px">Check All</span>
+                                    <input class="form-check-input" type="checkbox" id="selectAllPermissions">
+                                </div>
+                            </div>
                             
+                            <!-- FINAL PERFECTED 3-COLUMN LAYOUT -->
                             <div class="row">
                                 @foreach($modules as $module)
-                                <div class="col-md-6 col-lg-4 mb-4">
-                                    <div class="card h-100">
-                                        <div class="card-header bg-light">
-                                            <h5 class="mb-0 text-capitalize">{{ $module['name'] }}</h5>
-                                        </div>
-                                        <div class="card-body">
-                                            @foreach(['view', 'create', 'edit', 'delete'] as $action)
+                                <div class="col-md-4 mb-3">
+                                    <div class="d-flex align-items-center">
+                                        <!-- Module Name -->
+                                        <span class="font-weight-bold text-capitalize mr-2" style="font-size:1rem; min-width: 110px;">
+                                            {{ ucfirst($module['name']) }}
+                                        </span>
+                                        
+                                        <!-- Actions in ONE LINE with PERFECT SPACING -->
+                                        <div class="d-flex">
+                                            @foreach(['view', 'edit', 'delete'] as $action)
                                                 @if(isset($module['permissions'][$action]))
-                                                <div class="form-check">
-                                                    <input class="form-check-input permission-check" 
-                                                           type="checkbox" 
-                                                           name="permissions[]"
-                                                           value="{{ $module['permissions'][$action]->id }}"
-                                                           id="perm_{{ $module['permissions'][$action]->id }}">
-                                                    <label class="form-check-label" for="perm_{{ $module['permissions'][$action]->id }}">
-                                                        {{ ucfirst($action) }}
+                                                <div class="d-flex align-items-center" style="margin-right: 12px;">
+                                                    <label class="switch mr-1 mb-0">
+                                                        <input type="checkbox" 
+                                                               class="permission-toggle" 
+                                                               name="permissions[]"
+                                                               value="{{ $module['permissions'][$action]->id }}"
+                                                               id="perm_{{ $module['permissions'][$action]->id }}">
+                                                        <span class="slider round"></span>
                                                     </label>
+                                                    <span class="text-capitalize">{{ $action }}</span>
                                                 </div>
                                                 @endif
                                             @endforeach
@@ -79,31 +89,77 @@
 </div>
 @endsection
 
+@push('styles')
+<style>
+    /* Toggle Switch - Compact Style */
+    .switch {
+        position: relative;
+        display: inline-block;
+        width: 32px;
+        height: 16px;
+    }
+    .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #ccc;
+        transition: .4s;
+        border-radius: 16px;
+    }
+    .slider:before {
+        position: absolute;
+        content: "";
+        height: 12px;
+        width: 12px;
+        left: 2px;
+        bottom: 2px;
+        background-color: white;
+        transition: .4s;
+        border-radius: 50%;
+    }
+    input:checked + .slider {
+        background-color: #28a745;
+    }
+    input:checked + .slider:before {
+        transform: translateX(16px);
+    }
+</style>
+@endpush
+
 @push('scripts')
 <script>
 $(document).ready(function() {
-    // When role is selected
     $('#roleSelect').change(function() {
         const roleId = $(this).val();
         if (!roleId) return;
         
-        // Update form action URL
-        $('#permissionForm').attr('action', $('#permissionForm').attr('action').replace(/\/\d+$/, '') + '/' + roleId);
-        
-        // Get selected role name
-        const roleName = $(this).find('option:selected').text();
-        $('#roleName').text(roleName);
-        
-        // Fetch role permissions
         $.get('/roles/' + roleId, function(role) {
-            // Uncheck all permissions first
-            $('.permission-check').prop('checked', false);
-            
-            // Check the permissions this role has
+            $('.permission-toggle').prop('checked', false);
             role.permissions.forEach(permission => {
                 $('#perm_' + permission.id).prop('checked', true);
             });
+            // Uncheck "Select All" when changing roles
+            $('#selectAllPermissions').prop('checked', false);
         });
+    });
+
+    // Select All functionality
+    $('#selectAllPermissions').change(function() {
+        $('.permission-toggle').prop('checked', $(this).prop('checked'));
+    });
+
+    // Uncheck "Select All" if any permission is unchecked
+    $(document).on('change', '.permission-toggle', function() {
+        if(!$(this).prop('checked')) {
+            $('#selectAllPermissions').prop('checked', false);
+        }
+        // Check if all permissions are now checked
+        if($('.permission-toggle:not(:checked)').length === 0) {
+            $('#selectAllPermissions').prop('checked', true);
+        }
     });
 });
 </script>
