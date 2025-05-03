@@ -157,16 +157,26 @@ class TeacherController extends Controller
     // In TeacherController.php, update the getTeachers method:
     public function getTeachers()
     {
-        // First check if user is authenticated
         if (!auth()->check()) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
     
-        // Get teachers based on current user role
         $query = User::role('Teacher')->with(['institute', 'admin']);
     
-        if (!auth()->user()->hasRole('Super Admin')) {
-            $query->where('admin_id', auth()->id());
+        if (auth()->user()->hasRole('Super Admin')) {
+          
+        } 
+        elseif (auth()->user()->hasRole('Admin')) {
+          
+            $query->where('institute_id', auth()->user()->institute_id);
+        } 
+        elseif (auth()->user()->hasRole('Teacher')) {
+            
+            $query->where('id', auth()->id());
+        } 
+        else {
+           
+            return response()->json(['error' => 'Forbidden'], 403);
         }
     
         return datatables()->of($query)

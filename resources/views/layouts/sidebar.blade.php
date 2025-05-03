@@ -4,7 +4,7 @@
 		<div class="deznav">
             <div class="deznav-scroll">
 				<ul class="metismenu" id="menu">
-					<li class="menu-title">YOUR COMPANY</li>
+					<li class="menu-title fs-5">{{ Auth::user()->institute->name ?? 'YOUR COMPANY' }}</li>
 					<li><a class="" href="{{ route('dashboard') }}" aria-expanded="false">
 						
 						<span class="nav-text">Dashboard</span>
@@ -83,6 +83,36 @@
 							<li><a href="{{ route('admin.teachers.index') }}">Teacher List</a></li>
 						</ul>
 					</li>
+					<li>
+						<a href="admin-dashboard.html" class="has-arrow" aria-expanded="false">
+							<div class="menu-icon">
+								<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+									<path d="M4 19.5C4 18.6716 4.67157 18 5.5 18H20.5V4H5.5C4.67157 4 4 4.67157 4 5.5V19.5Z" stroke="#90959F" stroke-width="2"/>
+									<path d="M4 19.5C4 20.3284 4.67157 21 5.5 21H20.5V18H5.5C4.67157 18 4 18.6716 4 19.5Z" stroke="#90959F" stroke-width="2"/>
+								</svg>
+							</div>
+							<span class="nav-text">Course</span>
+						</a>
+						<ul aria-expanded="false">
+							<li><a href="{{ route('admin.courses.index') }}">Courses List</a></li>
+						</ul>
+					</li>
+
+					<li>
+						<a href="admin-dashboard.html" class="has-arrow" aria-expanded="false">
+							<div class="menu-icon">
+								<svg width="24" height="24" viewBox="0 0 640 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+									<path fill="#ffffff" d="M320 32c-17.7 0-32 14.3-32 32v8.2L97.1 143.8c-15.4 4.6-15.4 26.7 0 31.2l62.7 18.8c-12.3 15.2-19.8 34.4-19.8 55.3v42.1c0 10.5 10.1 18.1 20.2 15.1L320 240l160.9 66.3c10.1 4.2 20.2-4.6 20.2-15.1v-42.1c0-20.9-7.5-40.1-19.8-55.3l62.7-18.8c15.4-4.6 15.4-26.7 0-31.2L352 72.2V64c0-17.7-14.3-32-32-32zm160 352h-32.1c-29.6 0-56.6 16.3-70.1 42.3L352 512H512l-32-85.3c-13.5-26-40.5-42.3-70-42.3zM320 352a96 96 0 1 0 0-192 96 96 0 1 0 0 192z"/>
+								</svg>
+							</div>
+							<span class="nav-text">Student</span>
+						</a>
+						<ul aria-expanded="false">
+							<li><a href="{{ route('admin.students.index') }}">student List</a></li>
+						</ul>
+					</li>
+					
+
 					
 					
 				</ul>

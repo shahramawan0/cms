@@ -34,10 +34,16 @@ return new class extends Migration
             // Hierarchy
             $table->unsignedBigInteger('admin_id')->nullable();
             $table->unsignedBigInteger('teacher_id')->nullable();
+            $table->unsignedBigInteger('created_by')->nullable();
+            $table->unsignedBigInteger('updated_by')->nullable();
+
 
             // Foreign keys
             $table->foreign('admin_id')->references('id')->on('users')->onDelete('set null');
             $table->foreign('teacher_id')->references('id')->on('users')->onDelete('set null');
+            $table->foreign('created_by')->references('id')->on('users')->onDelete('set null');
+            $table->foreign('updated_by')->references('id')->on('users')->onDelete('set null');
+
         });
     }
 
@@ -49,6 +55,9 @@ return new class extends Migration
         Schema::table('users', function (Blueprint $table) {
             $table->dropForeign(['admin_id']);
             $table->dropForeign(['teacher_id']);
+            $table->dropForeign(['created_by']);
+            $table->dropForeign(['updated_by']);
+
             $table->dropColumn([
                 'qualification',
                 'experience_years',
@@ -64,7 +73,9 @@ return new class extends Migration
                 'gender',
                 'dob',
                 'admin_id',
-                'teacher_id'
+                'teacher_id',
+                'created_by',
+                'updated_by'
             ]);
         });
     }
