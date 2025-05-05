@@ -13,80 +13,6 @@ class InstituteController extends Controller
         return view('institute.index');
     }
 
-    public function create()
-    {
-        return view('institute.create_institute');
-    }
-
-    public function store(Request $request)
-    {
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:institutes,email',
-            'phone' => 'nullable|string|max:20',
-            'address' => 'nullable|string',
-            'logo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'is_active' => 'boolean'
-        ]);
-
-        $data = $request->except('logo');
-
-        if ($request->hasFile('logo')) {
-            $data['logo'] = $request->file('logo')->store('institutes/logo', 'public');
-        }
-
-        Institute::create($data);
-
-        return redirect()->route('institutes.index')->with('success', 'Institute created successfully.');
-    }
-
-    public function edit($id)
-    {
-        $institute = Institute::findOrFail($id);
-        return view('institute.create_institute', compact('institute'));
-    }
-
-    public function update(Request $request, $id)
-    {
-        $institute = Institute::findOrFail($id);
-
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:institutes,email,'.$institute->id,
-            'phone' => 'nullable|string|max:20',
-            'address' => 'nullable|string',
-            'logo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'is_active' => 'boolean'
-        ]);
-
-        $data = $request->except('logo');
-
-        if ($request->hasFile('logo')) {
-            // Delete old logo if exists
-            if ($institute->logo) {
-                Storage::disk('public')->delete($institute->logo);
-            }
-            $data['logo'] = $request->file('logo')->store('institutes/logo', 'public');
-        }
-
-        $institute->update($data);
-
-        return redirect()->route('institutes.index')->with('success', 'Institute updated successfully.');
-    }
-
-    public function destroy($id)
-    {
-        $institute = Institute::findOrFail($id);
-        
-        if ($institute->logo) {
-            Storage::disk('public')->delete($institute->logo);
-        }
-        
-        $institute->delete();
-        
-        return response()->json(['success' => 'Institute deleted successfully.']);
-    }
-
     public function getInstitutes()
     {
         $institutes = Institute::query();
@@ -107,18 +33,115 @@ class InstituteController extends Controller
             ->addColumn('action', function($institute) {
                 return '
                     <div class="btn-group">
-                        <a href="'.route('institutes.edit', $institute->id).'" class="btn btn-sm btn-info me-1">
-                            <i class="fas fa-edit"></i>
-                            Edit
-                        </a>
+                        <button class="btn btn-sm btn-primary edit-btn me-1" data-id="'.$institute->id.'">
+                            <i class="fas fa-edit"></i> Edit
+                        </button>
                         <button class="btn btn-sm btn-danger delete-btn" data-id="'.$institute->id.'">
-                            <i class="fas fa-trash"></i>
-                            Delete
+                            <i class="fas fa-trash"></i> Delete
                         </button>
                     </div>
                 ';
             })
             ->rawColumns(['logo', 'status', 'action'])
             ->make(true);
+    }
+
+    public function store(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:institutes,email',
+            'phone' => 'nullable|string|max:20',
+            'address' => 'nullable|string',
+            'logo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'is_active' => 'boolean'
+        ]);
+
+        try {
+            $data = $request->except('logo');
+
+            if ($request->hasFile('logo')) {
+                $data['logo'] = $request->file('logo')->store('institutes/logo', 'public');
+            }
+
+            Institute::create($data);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Institute created successfully!'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error creating institute: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function edit($id)
+    {
+        $institute = Institute::findOrFail($id);
+        return response()->json($institute);
+    }
+
+    public function update(Request $request, $id)
+    {
+        $institute = Institute::findOrFail($id);
+
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:institutes,email,'.$institute->id,
+            'phone' => 'nullable|string|max:20',
+            'address' => 'nullable|string',
+            'logo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'is_active' => 'boolean'
+        ]);
+
+        try {
+            $data = $request->except('logo');
+
+            if ($request->hasFile('logo')) {
+                // Delete old logo if exists
+                if ($institute->logo) {
+                    Storage::disk('public')->delete($institute->logo);
+                }
+                $data['logo'] = $request->file('logo')->store('institutes/logo', 'public');
+            }
+
+            $institute->update($data);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Institute updated successfully!'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error updating institute: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function destroy($id)
+    {
+        try {
+            $institute = Institute::findOrFail($id);
+            
+            if ($institute->logo) {
+                Storage::disk('public')->delete($institute->logo);
+            }
+            
+            $institute->delete();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Institute deleted successfully!'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error deleting institute: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

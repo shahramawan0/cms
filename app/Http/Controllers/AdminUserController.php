@@ -18,14 +18,9 @@ class AdminUserController extends Controller
 
     public function index()
     {
-        return view('admins.index');
-    }
-
-    public function create()
-    {
         $institutes = Institute::where('is_active', true)->get();
         $roles = $this->getAdminRoles();
-        return view('admins.create', compact('institutes', 'roles'));
+        return view('admins.index', compact('institutes', 'roles'));
     }
 
     public function store(Request $request)
@@ -57,7 +52,7 @@ class AdminUserController extends Controller
         $user = User::create($data);
         $user->assignRole($selectedRole->name);
 
-        return redirect()->route('admin.users.index')->with('success', 'Admin user created successfully.');
+        return response()->json(['success' => true, 'message' => 'Admin user created successfully.']);
     }
 
     public function edit($id)
@@ -65,7 +60,7 @@ class AdminUserController extends Controller
         $user = User::findOrFail($id);
         $institutes = Institute::where('is_active', true)->get();
         $roles = $this->getAdminRoles();
-        return view('admins.create', compact('user', 'institutes', 'roles'));
+        return response()->json(['user' => $user, 'institutes' => $institutes, 'roles' => $roles]);
     }
 
     public function update(Request $request, $id)
@@ -105,7 +100,7 @@ class AdminUserController extends Controller
         $user->update($data);
         $user->syncRoles([$selectedRole->name]);
 
-        return redirect()->route('admin.users.index')->with('success', 'Admin user updated successfully.');
+        return response()->json(['success' => true, 'message' => 'Admin user updated successfully.']);
     }
 
     public function destroy($id)
@@ -152,26 +147,18 @@ class AdminUserController extends Controller
             ->addColumn('action', function($user) {
                 return '
                     <div class="btn-group">
-                        <a href="'.route('admin.users.edit', $user->id).'" class="btn btn-sm btn-info me-1">
+                        <button class="btn btn-sm btn-info edit-btn me-1" data-id="'.$user->id.'">
                             <i class="fas fa-edit"></i>
                             Edit
-                        </a>
+                        </button>
                         <button class="btn btn-sm btn-danger delete-btn me-1" data-id="'.$user->id.'">
                             <i class="fas fa-trash"></i>
                             Delete
                         </button>
-                         <a href="'.route('admin.users.view', $user->id).'" class="btn btn-sm btn-secondary me-1">
-                            <i class="fas fa-eye"></i> View
-                        </a>
-                        
                     </div>
                 ';
             })
             ->rawColumns(['profile_image', 'status', 'action'])
             ->make(true);
-    }
-    public function view($id){
-     $user = User::with(['institute', 'roles'])->findOrFail($id);
-     return view('admins.view_admin', compact('user'));
     }
 }

@@ -13,11 +13,9 @@
                 </div>
                 
                 <div class="card-body px-5 py-4">
-                    <form id="teacherForm" enctype="multipart/form-data">
+                    <form action="{{ isset($teacher) ? route('admin.teachers.update', $teacher->id) : route('admin.teachers.store') }}" method="POST" enctype="multipart/form-data">
                         @csrf
-                        @if(isset($teacher))
-                            @method('PUT')
-                        @endif
+                       
 
                         <!-- Institute Information Section (For Super Admin) -->
                         @if(auth()->user()->hasRole('Super Admin'))
@@ -362,11 +360,11 @@
                         </div>
 
                         <!-- Form Actions -->
-                        <div class="form-group text-center mt-4">
-                            <button type="submit" class="btn btn-primary btn-lg px-5 mr-3">
+                        <div class="form-group mt-4">
+                            <button type="submit" class="btn btn-primary btn-sm  mr-3">
                                 <i class="fas fa-save mr-2"></i> {{ isset($teacher) ? 'Update Teacher' : 'Register Teacher' }}
                             </button>
-                            <a href="{{ route('admin.teachers.index') }}" class="btn btn-outline-secondary btn-lg px-5">
+                            <a href="{{ route('admin.teachers.index') }}" class="btn btn-outline-secondary btn-sm">
                                 <i class="fas fa-times mr-2"></i> Cancel
                             </a>
                         </div>
@@ -429,57 +427,124 @@
 
 @push('scripts')
 <script>
-$(document).ready(function() {
-    // Toggle password visibility
-    $('.toggle-password').click(function() {
-        const input = $(this).closest('.input-group').find('input');
-        const icon = $(this).find('i');
+    $(document).ready(function() {
+        // Toggle password visibility
+        $('.toggle-password').click(function() {
+            const input = $(this).closest('.input-group').find('input');
+            const icon = $(this).find('i');
+            
+            if (input.attr('type') === 'password') {
+                input.attr('type', 'text');
+                icon.removeClass('fa-eye').addClass('fa-eye-slash');
+            } else {
+                input.attr('type', 'password');
+                icon.removeClass('fa-eye-slash').addClass('fa-eye');
+            }
+        });
         
-        if (input.attr('type') === 'password') {
-            input.attr('type', 'text');
-            icon.removeClass('fa-eye').addClass('fa-eye-slash');
-        } else {
-            input.attr('type', 'password');
-            icon.removeClass('fa-eye-slash').addClass('fa-eye');
-        }
-    });
+        // Custom file input
+        $('.custom-file-input').on('change', function() {
+            let fileName = $(this).val().split('\\').pop();
+            $(this).next('.custom-file-label').addClass("selected").html(fileName);
+        });
     
-    // Custom file input
-    $('.custom-file-input').on('change', function() {
-        let fileName = $(this).val().split('\\').pop();
-        $(this).next('.custom-file-label').addClass("selected").html(fileName);
-    });
+        $('form').on('submit', function(e) {
+    e.preventDefault();
+    
+    var form = $(this);
+    var formData = new FormData(this);
+    var url = form.attr('action');
+    var method = form.attr('method');
+    var submitButton = form.find('button[type="submit"]');
+    var originalText = submitButton.html();
 
-    @if(auth()->user()->hasRole('Super Admin'))
-        // Only Super Admin needs the institute-admin AJAX functionality
-        $('#institute_id').change(function() {
-            var institute_id = $(this).val();
+    submitButton.html('<i class="fas fa-spinner fa-spin"></i> Processing...');
+    submitButton.prop('disabled', true);
 
-            if (institute_id) {
-                $.ajax({
-                    url: '/admin/teachers/getAdmins/' + institute_id,
-                    type: 'GET',
-                    success: function(response) {
-                        $('#admin_id').empty();
-                        $('#admin_id').append('<option value="">Select Admin</option>');
-                        $.each(response.admins, function(index, admin) {
-                            $('#admin_id').append('<option value="' + admin.id + '">' + admin.name + ' (' + admin.email + ')</option>');
-                        });
-                    },
-                    error: function(xhr, status, error) {
-                        alert('Something went wrong while fetching the admins!');
+    // Add _method field for PUT/PATCH/DELETE requests
+    if (method !== 'POST') {
+        formData.append('_method', method);
+    }
+
+    $.ajax({
+        url: url,
+        type: 'POST', // Always use POST for FormData with Laravel
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function(response) {
+            submitButton.html(originalText);
+            submitButton.prop('disabled', false);
+
+            if (response.success) {
+                Swal.fire({
+                    icon: 'success',
+                    title: response.message || 'Operation successful!',
+                    showConfirmButton: true
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        window.location.href = '{{ route('admin.teachers.index') }}';
                     }
                 });
             } else {
-                $('#admin_id').empty().append('<option value="">Select Admin</option>');
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Oops...',
+                    text: response.message || 'Something went wrong!',
+                });
             }
-        });
+        },
+        error: function(xhr, status, error) {
+            submitButton.html(originalText);
+            submitButton.prop('disabled', false);
 
-        // Trigger change event if editing and institute is already selected
-        @if(isset($teacher) && $teacher->institute_id)
-            $('#institute_id').trigger('change');
-        @endif
-    @endif
+            let errorMessage = 'An error occurred';
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                errorMessage = xhr.responseJSON.message;
+            } else if (xhr.statusText) {
+                errorMessage = xhr.statusText;
+            }
+
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: errorMessage,
+            });
+        }
+    });
 });
-</script>
+    
+        @if(auth()->user()->hasRole('Super Admin'))
+            // Only Super Admin needs the institute-admin AJAX functionality
+            $('#institute_id').change(function() {
+                var institute_id = $(this).val();
+    
+                if (institute_id) {
+                    $.ajax({
+                        url: '/admin/teachers/getAdmins/' + institute_id,
+                        type: 'GET',
+                        success: function(response) {
+                            $('#admin_id').empty();
+                            $('#admin_id').append('<option value="">Select Admin</option>');
+                            $.each(response.admins, function(index, admin) {
+                                $('#admin_id').append('<option value="' + admin.id + '">' + admin.name + ' (' + admin.email + ')</option>');
+                            });
+                        },
+                        error: function(xhr, status, error) {
+                            alert('Something went wrong while fetching the admins!');
+                        }
+                    });
+                } else {
+                    $('#admin_id').empty().append('<option value="">Select Admin</option>');
+                }
+            });
+    
+            // Trigger change event if editing and institute is already selected
+            @if(isset($teacher) && $teacher->institute_id)
+                $('#institute_id').trigger('change');
+            @endif
+        @endif
+    });
+    </script>
+    
 @endpush

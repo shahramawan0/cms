@@ -9,77 +9,65 @@
                     <div class="d-flex justify-content-between align-items-center w-100">
                         <div>
                             <h3 class="card-title mb-0 text-white">
-                                <i class="fas fa-university text-white"></i> Institutes
+                                <i class="fas fa-chalkboard text-white"></i> Classes
                             </h3>
                         </div>
                         <div>
-                            <button id="addInstituteBtn" class="btn btn-secondary btn-sm text-white">
-                                <i class="fas fa-plus"></i> Add Institute
+                            <button id="addClassBtn" class="btn btn-secondary btn-sm text-white">
+                                <i class="fas fa-plus"></i> Add Class
                             </button>
                         </div>
                     </div>
                 </div>
                 
-                <!-- Institute Form (Initially Hidden) -->
-                <div class="card-body" id="instituteFormContainer" style="display: none;">
-                    <form id="instituteForm" enctype="multipart/form-data">
+                <!-- Class Form (Initially Hidden) -->
+                <div class="card-body" id="classFormContainer" style="display: none;">
+                    <form id="classForm">
                         @csrf
-                        <input type="hidden" id="instituteId" name="id">
+                        <input type="hidden" id="classId" name="id">
                         <div class="row">
-                            <div class="col-md-6">
+                            <div class="col-md-4">
                                 <div class="form-group">
-                                    <label for="name">Name <span class="text-danger">*</span></label>
-                                    <input type="text" name="name" id="name" class="form-control" required>
+                                    <label for="session_id">Session <span class="text-danger">*</span></label>
+                                    <select name="session_id" id="session_id" class="form-control" required>
+                                        <option value="">Select Session</option>
+                                        @foreach($sessions as $session)
+                                            <option value="{{ $session->id }}">{{ $session->session_name }}</option>
+                                        @endforeach
+                                    </select>
+                                    <div class="invalid-feedback" id="session_id_error"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="name">Class Name <span class="text-danger">*</span></label>
+                                    <input type="text" name="name" id="name" 
+                                           class="form-control" required>
                                     <div class="invalid-feedback" id="name_error"></div>
                                 </div>
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-md-4">
                                 <div class="form-group">
-                                    <label for="email">Email <span class="text-danger">*</span></label>
-                                    <input type="email" name="email" id="email" class="form-control" required>
-                                    <div class="invalid-feedback" id="email_error"></div>
+                                    <label for="status">Status <span class="text-danger">*</span></label>
+                                    <select name="status" id="status" class="form-control" required>
+                                        <option value="active">Active</option>
+                                        <option value="inactive">Inactive</option>
+                                        <option value="archived">Archived</option>
+                                    </select>
+                                    <div class="invalid-feedback" id="status_error"></div>
                                 </div>
                             </div>
                         </div>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="phone">Phone</label>
-                                    <input type="text" name="phone" id="phone" class="form-control">
-                                    <div class="invalid-feedback" id="phone_error"></div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="is_active">Status</label>
-                                    <div class="custom-control custom-switch mt-2">
-                                        <input type="checkbox" name="is_active" id="is_active" class="custom-control-input" value="1" checked>
-                                        <label class="custom-control-label" for="is_active">Active</label>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row">
+                        <div class="row mt-3">
                             <div class="col-md-12">
                                 <div class="form-group">
-                                    <label for="address">Address</label>
-                                    <textarea name="address" id="address" class="form-control" rows="2"></textarea>
+                                    <label for="description">Description</label>
+                                    <textarea name="description" id="description" 
+                                              class="form-control" rows="2"></textarea>
                                 </div>
                             </div>
                         </div>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="logo">Institute Logo</label>
-                                    <input type="file" name="logo" id="logo" class="form-control">
-                                    <div class="invalid-feedback" id="logo_error"></div>
-                                    <div id="logoPreview" class="mt-2" style="display: none;">
-                                        <img id="previewImage" src="#" alt="Logo Preview" class="img-thumbnail" width="100">
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row">
+                        <div class="row mt-3">
                             <div class="col-md-12">
                                 <button type="submit" id="submitBtn" class="btn btn-primary">
                                     <span id="submitBtnText">Submit</span>
@@ -91,15 +79,14 @@
                     </form>
                 </div>
                 
-                <!-- Institutes Table -->
+                <!-- Classes Table -->
                 <div class="card-body">
-                    <table id="institutes-table" class="table table-bordered table-striped">
+                    <table id="classes-table" class="table table-bordered table-striped">
                         <thead>
                             <tr>
-                                <th>Logo</th>
-                                <th>Name</th>
-                                <th>Email</th>
-                                <th>Phone</th>
+                                <th>ID</th>
+                                <th>Session</th>
+                                <th>Class Name</th>
                                 <th>Status</th>
                                 <th>Actions</th>
                             </tr>
@@ -119,59 +106,43 @@
 <script>
 $(document).ready(function() {
     // Initialize DataTable
-    var table = $('#institutes-table').DataTable({
+    var table = $('#classes-table').DataTable({
         processing: true,
         serverSide: true,
-        ajax: "{{ route('institutes.data') }}",
+        ajax: "{{ route('classes.data') }}",
         columns: [
-            { data: 'logo', name: 'logo', orderable: false, searchable: false },
+            { data: 'id', name: 'id' },
+            { data: 'session.session_name', name: 'session.session_name' },
             { data: 'name', name: 'name' },
-            { data: 'email', name: 'email' },
-            { data: 'phone', name: 'phone' },
-            { data: 'status', name: 'is_active' },
+            { data: 'status', name: 'status' },
             { data: 'action', name: 'action', orderable: false, searchable: false }
         ],
         responsive: true,
         autoWidth: false,
         language: {
             paginate: {
-                previous: '<i class="fas fa-angle-left"></i>',
-                next: '<i class="fas fa-angle-right"></i>'
+                previous: '&laquo;',
+                next: '&raquo;'
             }
         }
     });
 
     // Show/hide form
-    $('#addInstituteBtn').click(function() {
-        $('#instituteForm')[0].reset();
-        $('#instituteId').val('');
-        $('#logoPreview').hide();
-        $('#instituteFormContainer').show();
+    $('#addClassBtn').click(function() {
+        $('#classForm')[0].reset();
+        $('#classId').val('');
+        $('#classFormContainer').show();
         $('html, body').animate({
-            scrollTop: $('#instituteFormContainer').offset().top
+            scrollTop: $('#classFormContainer').offset().top
         }, 500);
     });
 
     $('#cancelBtn').click(function() {
-        $('#instituteFormContainer').hide();
-    });
-
-    // Preview logo before upload
-    $('#logo').change(function() {
-        if (this.files && this.files[0]) {
-            var reader = new FileReader();
-            
-            reader.onload = function(e) {
-                $('#previewImage').attr('src', e.target.result);
-                $('#logoPreview').show();
-            }
-            
-            reader.readAsDataURL(this.files[0]);
-        }
+        $('#classFormContainer').hide();
     });
 
     // Form submission
-    $('#instituteForm').submit(function(e) {
+    $('#classForm').submit(function(e) {
         e.preventDefault();
         
         // Show loader
@@ -183,26 +154,23 @@ $(document).ready(function() {
         $('.is-invalid').removeClass('is-invalid');
         $('.invalid-feedback').text('');
         
-        let formData = new FormData(this);
-        let url = "{{ route('institutes.store') }}";
+        let formData = $(this).serialize();
+        let url = "{{ route('classes.store') }}";
         let method = "POST";
         
         // If updating, change URL and method
-        if ($('#instituteId').val()) {
-            url = "{{ url('institutes/update') }}/" + $('#instituteId').val();
-            method = "POST";
-            formData.append('_method', 'PUT');
+        if ($('#classId').val()) {
+            url = "{{ url('classes/update') }}/" + $('#classId').val();
+            method = "PUT";
         }
         
         $.ajax({
             url: url,
-            type: 'POST',
+            type: method,
             data: formData,
-            processData: false,
-            contentType: false,
             success: function(response) {
                 // Hide form
-                $('#instituteFormContainer').hide();
+                $('#classFormContainer').hide();
                 
                 // Show success message
                 Swal.fire({
@@ -228,7 +196,7 @@ $(document).ready(function() {
                     Swal.fire({
                         icon: 'error',
                         title: 'Error',
-                        text: xhr.responseJSON.message || 'Something went wrong!'
+                        text: 'Something went wrong!'
                     });
                 }
             },
@@ -243,42 +211,33 @@ $(document).ready(function() {
 
     // Edit button click
     $(document).on('click', '.edit-btn', function() {
-        let instituteId = $(this).data('id');
+        let classId = $(this).data('id');
         
         // Show loader on button
         $(this).html('<i class="fas fa-spinner fa-spin"></i> Loading...');
         
         $.ajax({
-            url: "{{ url('institutes/edit') }}/" + instituteId,
+            url: "{{ url('classes/edit') }}/" + classId,
             type: "GET",
             success: function(response) {
                 // Fill form with data
-                $('#instituteId').val(response.id);
+                $('#classId').val(response.id);
                 $('#name').val(response.name);
-                $('#email').val(response.email);
-                $('#phone').val(response.phone);
-                $('#address').val(response.address);
-                $('#is_active').prop('checked', response.is_active);
-                
-                // Show logo if exists
-                if (response.logo) {
-                    $('#previewImage').attr('src', "{{ asset('storage') }}/" + response.logo);
-                    $('#logoPreview').show();
-                } else {
-                    $('#logoPreview').hide();
-                }
+                $('#session_id').val(response.session_id);
+                $('#status').val(response.status);
+                $('#description').val(response.description);
                 
                 // Show form
-                $('#instituteFormContainer').show();
+                $('#classFormContainer').show();
                 $('html, body').animate({
-                    scrollTop: $('#instituteFormContainer').offset().top
+                    scrollTop: $('#classFormContainer').offset().top
                 }, 500);
             },
             error: function(xhr) {
                 Swal.fire({
                     icon: 'error',
                     title: 'Error',
-                    text: 'Failed to load institute data!'
+                    text: 'Failed to load class data!'
                 });
             },
             complete: function() {
@@ -290,7 +249,7 @@ $(document).ready(function() {
 
     // Delete button click
     $(document).on('click', '.delete-btn', function() {
-        let instituteId = $(this).data('id');
+        let classId = $(this).data('id');
         
         Swal.fire({
             title: 'Are you sure?',
@@ -306,7 +265,7 @@ $(document).ready(function() {
                 $(this).html('<i class="fas fa-spinner fa-spin"></i> Deleting...');
                 
                 $.ajax({
-                    url: "{{ url('institutes/delete') }}/" + instituteId,
+                    url: "{{ url('classes/delete') }}/" + classId,
                     type: "DELETE",
                     data: {
                         _token: "{{ csrf_token() }}"
