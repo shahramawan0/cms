@@ -11,6 +11,8 @@ use App\Http\Controllers\StudentController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\ClassController;
 use App\Http\Controllers\SectionController;
+use App\Http\Controllers\StudentEnrollmentController;
+
 
 
 
@@ -98,18 +100,25 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/admin/courses/data', [CourseController::class, 'getCourses'])->name('admin.courses.data');
 });
 
-Route::prefix('admin')->middleware('auth')->group(function () {
+Route::middleware(['auth'])->group(function () {
     // Student Routes
-    Route::get('/students', [StudentController::class, 'index'])->name('admin.students.index');
-    Route::get('/students/create', [StudentController::class, 'create'])->name('admin.students.create');
-    Route::post('/students/store', [StudentController::class, 'store'])->name('admin.students.store');
-    Route::get('/students/edit/{id}', [StudentController::class, 'edit'])->name('admin.students.edit');
-    Route::post('/students/update/{id}', [StudentController::class, 'update'])->name('admin.students.update');
-    Route::delete('/students/delete/{id}', [StudentController::class, 'destroy'])->name('admin.students.destroy');
-    Route::get('/students/view/{id}', [StudentController::class, 'view'])->name('admin.students.view');
-    Route::get('/students/data', [StudentController::class, 'getStudents'])->name('admin.students.data');
+    Route::get('/students', [StudentController::class, 'index'])->name('students.index');
+    Route::get('/students/data', [StudentController::class, 'getStudents'])->name('students.data');
+    Route::post('/students/store', [StudentController::class, 'store'])->name('students.store');
+    Route::get('/students/edit/{id}', [StudentController::class, 'edit'])->name('students.edit');
+    Route::put('/students/update/{id}', [StudentController::class, 'update'])->name('students.update');
+    Route::delete('/students/delete/{id}', [StudentController::class, 'destroy'])->name('students.destroy');
 });
 
+Route::middleware(['auth'])->group(function () {
+    // Enrollment Routes
+    Route::get('/enrollments', [StudentEnrollmentController::class, 'index'])->name('enrollments.index');
+    Route::get('/enrollments/students', [StudentEnrollmentController::class, 'getStudents'])->name('enrollments.students');
+    Route::get('/enrollments/dropdowns', [StudentEnrollmentController::class, 'getDropdowns'])->name('enrollments.dropdowns');
+    Route::post('/enrollments/store', [StudentEnrollmentController::class, 'store'])->name('enrollments.store');
+    Route::get('/enrollments/data', [StudentEnrollmentController::class, 'getEnrollments'])->name('enrollments.data');
+    Route::delete('/enrollments/delete/{id}', [StudentEnrollmentController::class, 'destroy'])->name('enrollments.destroy');
+});
 
 Route::group(['middleware' => ['auth']], function() {
     // Session Routes

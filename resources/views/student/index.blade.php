@@ -8,37 +8,114 @@
                 <div class="card-header bg-info text-white">
                     <div class="d-flex justify-content-between align-items-center w-100">
                         <div>
-                            <h3 class="card-title text-white">
-                                <i class="fas fa-users"></i> Students Management
+                            <h3 class="card-title mb-0 text-white">
+                                <i class="fas fa-users text-white"></i> Students Registraion
                             </h3>
                         </div>
                         <div>
-                            <a href="{{ route('admin.students.create') }}" class="btn btn-secondary btn-sm text-white" id="add-student-btn">
-                                <i class="fas fa-plus"></i> Add Student
-                                <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-                            </a>
+                            <button id="addStudentBtn" class="btn btn-secondary btn-sm text-white">
+                                <i class="fas fa-plus"></i> Resgister Student
+                            </button>
                         </div>
                     </div>
                 </div>
+                
+                <!-- Student Form (Initially Hidden) -->
+                <div class="card-body" id="studentFormContainer" style="display: none;">
+                    <form id="studentForm">
+                        @csrf
+                        <input type="hidden" id="studentId" name="id">
+                        @if(auth()->user()->hasRole('Super Admin'))
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="institute_id">Institute <span class="text-danger">*</span></label>
+                                    <select name="institute_id" id="institute_id" class="form-control" required>
+                                        <option value="">Select Institute</option>
+                                        @foreach(App\Models\Institute::get() as $institute)
+                                            <option value="{{ $institute->id }}">{{ $institute->name }}</option>
+                                        @endforeach
+                                    </select>
+                                    <div class="invalid-feedback" id="institute_id_error"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="name">Name <span class="text-danger">*</span></label>
+                                    <input type="text" name="name" id="name" class="form-control" required>
+                                    <div class="invalid-feedback" id="name_error"></div>
+                                </div>
+                            </div>
+                        </div>
+                        @else
+                            <input type="hidden" name="institute_id" value="{{ auth()->user()->institute_id }}">
+                        @endif
+                        <div class="row">
+                           
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="email">Email <span class="text-danger">*</span></label>
+                                    <input type="email" name="email" id="email" class="form-control" required>
+                                    <div class="invalid-feedback" id="email_error"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="phone">Phone</label>
+                                    <input type="text" name="phone" id="phone" class="form-control">
+                                    <div class="invalid-feedback" id="phone_error"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="password">Password <span id="passwordRequired">*</span></label>
+                                    <input type="password" name="password" id="password" class="form-control">
+                                    <div class="invalid-feedback" id="password_error"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="password_confirmation">Confirm Password <span id="confirmPasswordRequired">*</span></label>
+                                    <input type="password" name="password_confirmation" id="password_confirmation" class="form-control">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-12">
+                                <div class="form-group">
+                                    <label for="address">Address</label>
+                                    <textarea type="text" name="address" id="address" class="form-control"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                       
+                        <div class="row mt-2">
+                            <div class="col-md-12">
+                                <button type="submit" id="submitBtn" class="btn btn-primary">
+                                    <span id="submitBtnText">Submit</span>
+                                    <span id="submitBtnLoader" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                                </button>
+                                <button type="button" id="cancelBtn" class="btn btn-secondary">Cancel</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                
+                <!-- Students Table -->
                 <div class="card-body">
                     <table id="students-table" class="table table-bordered table-striped">
                         <thead>
                             <tr>
-                                <th>Image</th>
                                 <th>Name</th>
                                 <th>Email</th>
                                 <th>Phone</th>
-                                <th>Roll Number</th>
-                                <th>Class / Section</th>
-                                <th>Admission Date</th>
                                 <th>Institute</th>
-                                <th>Admin</th>
-                                <th>Teacher</th>
-                                <th>Courses</th>
+                                {{-- <th>Status</th> --}}
                                 <th>Actions</th>
                             </tr>
                         </thead>
-                        
                         <tbody>
                             <!-- Data loaded via AJAX -->
                         </tbody>
@@ -53,50 +130,165 @@
 @push('scripts')
 <script>
 $(document).ready(function() {
-    $('#students-table').DataTable({
+    // Initialize DataTable
+    var table = $('#students-table').DataTable({
         processing: true,
         serverSide: true,
-        ajax: "{{ route('admin.students.data') }}",
+        ajax: "{{ route('students.data') }}",
         columns: [
-            { data: 'profile_image', name: 'profile_image', orderable: false, searchable: false },
             { data: 'name', name: 'name' },
             { data: 'email', name: 'email' },
             { data: 'phone', name: 'phone' },
             { data: 'institute', name: 'institute.name' },
-            { data: 'admin', name: 'admin.name' },
-            { data: 'teacher', name: 'teacher.name' },
-            { data: 'courses', name: 'courses.course_name' },
+            // { data: 'status', name: 'is_active' },
             { data: 'action', name: 'action', orderable: false, searchable: false }
         ],
         responsive: true,
         autoWidth: false,
-        scrollX: true,
         language: {
             paginate: {
                 previous: '<i class="fas fa-angle-left"></i>',
                 next: '<i class="fas fa-angle-right"></i>'
-            },
-            search: "_INPUT_",
-            searchPlaceholder: "Search students...",
-            lengthMenu: "Show _MENU_ students",
-            info: "Showing _START_ to _END_ of _TOTAL_ students",
-            infoEmpty: "No students found",
-            infoFiltered: "(filtered from _MAX_ total students)"
+            }
         }
     });
 
-    // Add loading spinner to all buttons
-    $(document).on('click', '[data-loading]', function() {
-        const btn = $(this);
-        btn.prop('disabled', true);
-        btn.find('.spinner-border').removeClass('d-none');
-        btn.find('i').addClass('d-none');
+    // Show/hide form
+    $('#addStudentBtn').click(function() {
+        $('#studentForm')[0].reset();
+        $('#studentId').val('');
+        $('#password').val('').attr('required', true);
+        $('#password_confirmation').val('').attr('required', true);
+        $('#passwordRequired, #confirmPasswordRequired').show();
+        $('#studentFormContainer').show();
+        $('html, body').animate({
+            scrollTop: $('#studentFormContainer').offset().top
+        }, 500);
     });
 
-    // Delete confirmation
+    $('#cancelBtn').click(function() {
+        $('#studentFormContainer').hide();
+    });
+
+    // Form submission
+    $('#studentForm').submit(function(e) {
+        e.preventDefault();
+        
+        // Show loader
+        $('#submitBtn').prop('disabled', true);
+        $('#submitBtnText').addClass('d-none');
+        $('#submitBtnLoader').removeClass('d-none');
+        
+        // Clear previous errors
+        $('.is-invalid').removeClass('is-invalid');
+        $('.invalid-feedback').text('');
+        
+        let url = "{{ route('students.store') }}";
+        let method = "POST";
+        let formData = $(this).serialize();
+
+        if ($('#studentId').val()) {
+            url = "{{ url('students/update') }}/" + $('#studentId').val();
+            // Add _method=PUT to the serialized data
+            formData += '&_method=PUT';
+        }
+        
+        $.ajax({
+            url: url,
+            type: method,
+            data: formData,
+            success: function(response) {
+                // Hide form
+                $('#studentFormContainer').hide();
+                
+                // Show success message
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Success',
+                    text: response.message,
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+                
+                // Reload table
+                table.ajax.reload(null, false);
+            },
+            error: function(xhr) {
+                if (xhr.status === 422) {
+                    // Validation errors
+                    let errors = xhr.responseJSON.errors;
+                    for (let field in errors) {
+                        $('#'+field).addClass('is-invalid');
+                        $('#'+field+'_error').text(errors[field][0]);
+                    }
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: xhr.responseJSON.message || 'Something went wrong!'
+                    });
+                }
+            },
+            complete: function() {
+                // Hide loader
+                $('#submitBtn').prop('disabled', false);
+                $('#submitBtnText').removeClass('d-none');
+                $('#submitBtnLoader').addClass('d-none');
+            }
+        });
+    });
+
+    // Edit button click
+    $(document).on('click', '.edit-btn', function() {
+        let studentId = $(this).data('id');
+        
+        // Show loader on button
+        $(this).html('<i class="fas fa-spinner fa-spin"></i> Loading...');
+        
+        $.ajax({
+            url: "{{ url('students/edit') }}/" + studentId,
+            type: "GET",
+            success: function(response) {
+                // Fill form with data
+                $('#studentId').val(response.id);
+                $('#name').val(response.name);
+                $('#email').val(response.email);
+                $('#phone').val(response.phone);
+                $('#address').val(response.address);
+                
+                // For super admin, set the institute value
+                if ($('#institute_id').length) {
+                    $('#institute_id').val(response.institute_id);
+                }
+                
+                // Show form
+                $('#studentFormContainer').show();
+                $('html, body').animate({
+                    scrollTop: $('#studentFormContainer').offset().top
+                }, 500);
+                
+                // Remove password requirement for editing
+                $('#password').removeAttr('required');
+                $('#password_confirmation').removeAttr('required');
+                $('#passwordRequired, #confirmPasswordRequired').hide();
+            },
+            error: function(xhr) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Failed to load student data!'
+                });
+            },
+            complete: function() {
+                // Reset button text
+                $('.edit-btn').html('<i class="fas fa-edit"></i> Edit');
+            }
+        });
+    });
+
+    // Delete button click
     $(document).on('click', '.delete-btn', function() {
-        var studentId = $(this).data('id');
-        var btn = $(this);
+        let studentId = $(this).data('id');
         
         Swal.fire({
             title: 'Are you sure?',
@@ -108,35 +300,33 @@ $(document).ready(function() {
             confirmButtonText: 'Yes, delete it!'
         }).then((result) => {
             if (result.isConfirmed) {
-                btn.prop('disabled', true);
-                btn.find('.spinner-border').removeClass('d-none');
-                btn.find('i').addClass('d-none');
+                // Show loader on button
+                $(this).html('<i class="fas fa-spinner fa-spin"></i> Deleting...');
                 
                 $.ajax({
-                    url: "{{ url('admin/students/delete') }}/" + studentId,
-                    type: 'DELETE',
+                    url: "{{ url('students/delete') }}/" + studentId,
+                    type: "DELETE",
                     data: {
                         _token: "{{ csrf_token() }}"
                     },
                     success: function(response) {
-                        $('#students-table').DataTable().ajax.reload(null, false);
                         Swal.fire(
                             'Deleted!',
-                            response.success,
+                            response.message,
                             'success'
                         );
+                        table.ajax.reload(null, false);
                     },
                     error: function(xhr) {
                         Swal.fire(
                             'Error!',
-                            'Failed to delete student',
+                            'Something went wrong while deleting.',
                             'error'
                         );
                     },
                     complete: function() {
-                        btn.prop('disabled', false);
-                        btn.find('.spinner-border').addClass('d-none');
-                        btn.find('i').removeClass('d-none');
+                        // Reset button text
+                        $('.delete-btn').html('<i class="fas fa-trash"></i> Delete');
                     }
                 });
             }

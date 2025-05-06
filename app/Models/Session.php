@@ -22,4 +22,5 @@ class Session extends Model
     {
         return $this->belongsTo(Institute::class);
     }
+    
 }
