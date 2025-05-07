@@ -24,6 +24,8 @@ class User extends Authenticatable
         'admin_id',
         'teacher_id',
         'name',
+        'father_name',
+        'cnic',
         'email',
         'phone',
         'profile_image',

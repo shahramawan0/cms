@@ -16,9 +16,7 @@ class StudentEnrollment extends Model
         'section_id',
         'course_id',
         'enrollment_date',
-        'status',
-        'created_by',
-        'updated_by'
+        'status'
     ];
 
     public function student()
@@ -48,16 +46,6 @@ class StudentEnrollment extends Model
 
     public function course()
     {
-        return $this->belongsTo(Course::class);
-    }
-
-    public function createdBy()
-    {
-        return $this->belongsTo(User::class, 'created_by');
-    }
-
-    public function updatedBy()
-    {
-        return $this->belongsTo(User::class, 'updated_by');
+        return $this->belongsTo(Course::class,'course_id');
     }
 }

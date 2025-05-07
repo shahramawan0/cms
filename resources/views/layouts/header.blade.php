@@ -27,3 +27,6 @@
 <link href="{{ asset('vendor/bootstrap-datetimepicker/css/bootstrap-datetimepicker.min.css') }}" rel="stylesheet">
 <link href="{{ asset('vendor/tagify/dist/tagify.css') }}" rel="stylesheet">
 <link href="{{ asset('./css/style.css') }}" rel="stylesheet">
+
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />

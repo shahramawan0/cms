@@ -22,7 +22,7 @@
                 
                 <!-- Student Form (Initially Hidden) -->
                 <div class="card-body" id="studentFormContainer" style="display: none;">
-                    <form id="studentForm">
+                    <form id="studentForm" enctype="multipart/form-data">
                         @csrf
                         <input type="hidden" id="studentId" name="id">
                         @if(auth()->user()->hasRole('Super Admin'))
@@ -51,7 +51,59 @@
                             <input type="hidden" name="institute_id" value="{{ auth()->user()->institute_id }}">
                         @endif
                         <div class="row">
-                           
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="roll_number">Roll Number <span class="text-danger">*</span></label>
+                                    <input type="text" name="roll_number" id="roll_number" class="form-control" required>
+                                    <div class="invalid-feedback" id="roll_number_error"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="cnic">CNIC <span class="text-danger">*</span></label>
+                                    <input type="text" name="cnic" id="cnic" class="form-control" required>
+                                    <div class="invalid-feedback" id="cnic_error"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="father_name">Father Name <span class="text-danger">*</span></label>
+                                    <input type="text" name="father_name" id="father_name" class="form-control" required>
+                                    <div class="invalid-feedback" id="father_name_error"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="gender">Gender <span class="text-danger">*</span></label>
+                                    <select name="gender" id="gender" class="form-control" required>
+                                        <option value="">Select Gender</option>
+                                        <option value="Male">Male</option>
+                                        <option value="Female">Female</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                    <div class="invalid-feedback" id="gender_error"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="dob">Date of Birth <span class="text-danger">*</span></label>
+                                    <input type="date" name="dob" id="dob" class="form-control" required>
+                                    <div class="invalid-feedback" id="dob_error"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="admission_date">Admission Date <span class="text-danger">*</span></label>
+                                    <input type="date" name="admission_date" id="admission_date" class="form-control" required>
+                                    <div class="invalid-feedback" id="admission_date_error"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label for="email">Email <span class="text-danger">*</span></label>
@@ -83,7 +135,17 @@
                             </div>
                         </div>
                         <div class="row">
-                            <div class="col-md-12">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="profile_image">Profile Image</label>
+                                    <input type="file" name="profile_image" id="profile_image" class="form-control">
+                                    <div class="invalid-feedback" id="profile_image_error"></div>
+                                    <div id="imagePreview" class="mt-2" style="display: none;">
+                                        <img id="previewImg" src="#" alt="Profile Image Preview" style="max-width: 100px; max-height: 100px;">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
                                 <div class="form-group">
                                     <label for="address">Address</label>
                                     <textarea type="text" name="address" id="address" class="form-control"></textarea>
@@ -108,11 +170,13 @@
                     <table id="students-table" class="table table-bordered table-striped">
                         <thead>
                             <tr>
+                                <th>Roll No</th>
                                 <th>Name</th>
+                                <th>Father Name</th>
+                                <th>CNIC</th>
                                 <th>Email</th>
                                 <th>Phone</th>
                                 <th>Institute</th>
-                                {{-- <th>Status</th> --}}
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -136,11 +200,13 @@ $(document).ready(function() {
         serverSide: true,
         ajax: "{{ route('students.data') }}",
         columns: [
+            { data: 'roll_number', name: 'roll_number' },
             { data: 'name', name: 'name' },
+            { data: 'father_name', name: 'father_name' },
+            { data: 'cnic', name: 'cnic' },
             { data: 'email', name: 'email' },
             { data: 'phone', name: 'phone' },
             { data: 'institute', name: 'institute.name' },
-            // { data: 'status', name: 'is_active' },
             { data: 'action', name: 'action', orderable: false, searchable: false }
         ],
         responsive: true,
@@ -161,6 +227,7 @@ $(document).ready(function() {
         $('#password_confirmation').val('').attr('required', true);
         $('#passwordRequired, #confirmPasswordRequired').show();
         $('#studentFormContainer').show();
+        $('#imagePreview').hide();
         $('html, body').animate({
             scrollTop: $('#studentFormContainer').offset().top
         }, 500);
@@ -168,6 +235,19 @@ $(document).ready(function() {
 
     $('#cancelBtn').click(function() {
         $('#studentFormContainer').hide();
+    });
+
+    // Profile image preview
+    $('#profile_image').change(function() {
+        const file = this.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                $('#previewImg').attr('src', e.target.result);
+                $('#imagePreview').show();
+            }
+            reader.readAsDataURL(file);
+        }
     });
 
     // Form submission
@@ -185,18 +265,19 @@ $(document).ready(function() {
         
         let url = "{{ route('students.store') }}";
         let method = "POST";
-        let formData = $(this).serialize();
+        let formData = new FormData(this);
 
         if ($('#studentId').val()) {
             url = "{{ url('students/update') }}/" + $('#studentId').val();
-            // Add _method=PUT to the serialized data
-            formData += '&_method=PUT';
+            formData.append('_method', 'PUT');
         }
         
         $.ajax({
             url: url,
             type: method,
             data: formData,
+            processData: false,
+            contentType: false,
             success: function(response) {
                 // Hide form
                 $('#studentFormContainer').hide();
@@ -239,52 +320,72 @@ $(document).ready(function() {
     });
 
     // Edit button click
-    $(document).on('click', '.edit-btn', function() {
-        let studentId = $(this).data('id');
-        
-        // Show loader on button
-        $(this).html('<i class="fas fa-spinner fa-spin"></i> Loading...');
-        
-        $.ajax({
-            url: "{{ url('students/edit') }}/" + studentId,
-            type: "GET",
-            success: function(response) {
-                // Fill form with data
-                $('#studentId').val(response.id);
-                $('#name').val(response.name);
-                $('#email').val(response.email);
-                $('#phone').val(response.phone);
-                $('#address').val(response.address);
-                
-                // For super admin, set the institute value
-                if ($('#institute_id').length) {
-                    $('#institute_id').val(response.institute_id);
-                }
-                
-                // Show form
-                $('#studentFormContainer').show();
-                $('html, body').animate({
-                    scrollTop: $('#studentFormContainer').offset().top
-                }, 500);
-                
-                // Remove password requirement for editing
-                $('#password').removeAttr('required');
-                $('#password_confirmation').removeAttr('required');
-                $('#passwordRequired, #confirmPasswordRequired').hide();
-            },
-            error: function(xhr) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    text: 'Failed to load student data!'
-                });
-            },
-            complete: function() {
-                // Reset button text
-                $('.edit-btn').html('<i class="fas fa-edit"></i> Edit');
+   // Edit button click
+$(document).on('click', '.edit-btn', function() {
+    let studentId = $(this).data('id');
+    
+    // Show loader on button
+    $(this).html('<i class="fas fa-spinner fa-spin"></i> Loading...');
+    
+    $.ajax({
+        url: "{{ url('students/edit') }}/" + studentId,
+        type: "GET",
+        success: function(response) {
+            // Fill form with data
+            $('#studentId').val(response.id);
+            $('#name').val(response.name);
+            $('#father_name').val(response.father_name);
+            $('#cnic').val(response.cnic);
+            $('#roll_number').val(response.roll_number);
+            
+            // Set gender properly - ensure case matches select options
+            $('#gender').val(response.gender.charAt(0).toUpperCase() + response.gender.slice(1).toLowerCase());
+            
+            // Set date fields - they should be in YYYY-MM-DD format
+            $('#dob').val(response.dob);
+            $('#admission_date').val(response.admission_date);
+            
+            $('#email').val(response.email);
+            $('#phone').val(response.phone);
+            $('#address').val(response.address);
+            
+            // For super admin, set the institute value
+            if ($('#institute_id').length) {
+                $('#institute_id').val(response.institute_id);
             }
-        });
+            
+            // Show profile image preview if exists
+            if (response.profile_image) {
+                $('#previewImg').attr('src', "{{ asset('storage') }}/" + response.profile_image);
+                $('#imagePreview').show();
+            } else {
+                $('#imagePreview').hide();
+            }
+            
+            // Show form
+            $('#studentFormContainer').show();
+            $('html, body').animate({
+                scrollTop: $('#studentFormContainer').offset().top
+            }, 500);
+            
+            // Remove password requirement for editing
+            $('#password').removeAttr('required');
+            $('#password_confirmation').removeAttr('required');
+            $('#passwordRequired, #confirmPasswordRequired').hide();
+        },
+        error: function(xhr) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Failed to load student data!'
+            });
+        },
+        complete: function() {
+            // Reset button text
+            $('.edit-btn').html('<i class="fas fa-edit"></i> Edit');
+        }
     });
+});
 
     // Delete button click
     $(document).on('click', '.delete-btn', function() {

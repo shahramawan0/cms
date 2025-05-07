@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\Institute;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rules;
 
 class StudentController extends Controller
@@ -28,11 +29,6 @@ class StudentController extends Controller
             ->addColumn('institute', function($student) {
                 return $student->institute ? $student->institute->name : 'N/A';
             })
-            // ->addColumn('status', function($student) {
-            //     return $student->is_active 
-            //         ? '<span class="badge bg-success">Active</span>'
-            //         : '<span class="badge bg-danger">Inactive</span>';
-            // })
             ->addColumn('action', function($student) {
                 return '
                     <div class="btn-group">
@@ -45,7 +41,7 @@ class StudentController extends Controller
                     </div>
                 ';
             })
-            ->rawColumns(['status', 'action'])
+            ->rawColumns(['action'])
             ->make(true);
     }
 
@@ -56,23 +52,43 @@ class StudentController extends Controller
 
         $request->validate([
             'name' => 'required|string|max:255',
+            'father_name' => 'required|string|max:255',
+            'cnic' => 'required|string|max:15|unique:users,cnic',
+            'roll_number' => 'required|string|max:50|unique:users,roll_number',
+            'gender' => 'required|in:Male,Female,Other',
+            'dob' => 'required|date',
+            'admission_date' => 'required|date',
             'email' => 'required|email|unique:users,email',
             'phone' => 'nullable|string|max:20',
             'address' => 'nullable|string',
+            'profile_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
         try {
-            $student = User::create([
+            $data = [
                 'name' => $request->name,
+                'father_name' => $request->father_name,
+                'cnic' => $request->cnic,
+                'roll_number' => $request->roll_number,
+                'gender' => $request->gender,
+                'dob' => $request->dob,
+                'admission_date' => $request->admission_date,
                 'email' => $request->email,
                 'phone' => $request->phone,
                 'address' => $request->address,
                 'password' => Hash::make($request->password),
                 'institute_id' => $instituteId,
                 'is_active' => true
-            ]);
+            ];
 
+            // Handle profile image upload
+            if ($request->hasFile('profile_image')) {
+                $path = $request->file('profile_image')->store('public/student_profile_images');
+                $data['profile_image'] = str_replace('public/', '', $path);
+            }
+
+            $student = User::create($data);
             $student->assignRole('Student');
 
             return response()->json([
@@ -88,10 +104,18 @@ class StudentController extends Controller
     }
 
     public function edit($id)
-    {
-        $student = User::role('Student')->findOrFail($id);
-        return response()->json($student);
-    }
+{
+    $student = User::role('Student')->findOrFail($id);
+    
+    // Format dates properly for display (they're already in Y-m-d format)
+    $student->dob = $student->dob;
+    $student->admission_date = $student->admission_date;
+    
+    // Make sure gender is lowercase to match select options
+    $student->gender = ucfirst(strtolower($student->gender));
+    
+    return response()->json($student);
+}
 
     public function update(Request $request, $id)
     {
@@ -99,15 +123,28 @@ class StudentController extends Controller
 
         $request->validate([
             'name' => 'required|string|max:255',
+            'father_name' => 'required|string|max:255',
+            'cnic' => 'required|string|max:15|unique:users,cnic,'.$student->id,
+            'roll_number' => 'required|string|max:50|unique:users,roll_number,'.$student->id,
+            'gender' => 'required|in:Male,Female,Other',
+            'dob' => 'required|date',
+            'admission_date' => 'required|date',
             'email' => 'required|email|unique:users,email,'.$student->id,
             'phone' => 'nullable|string|max:20',
             'address' => 'nullable|string',
+            'profile_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             'password' => ['nullable', 'confirmed', Rules\Password::defaults()],
         ]);
 
         try {
             $data = [
                 'name' => $request->name,
+                'father_name' => $request->father_name,
+                'cnic' => $request->cnic,
+                'roll_number' => $request->roll_number,
+                'gender' => $request->gender,
+                'dob' => $request->dob,
+                'admission_date' => $request->admission_date,
                 'email' => $request->email,
                 'phone' => $request->phone,
                 'address' => $request->address,
@@ -115,6 +152,17 @@ class StudentController extends Controller
 
             if ($request->password) {
                 $data['password'] = Hash::make($request->password);
+            }
+
+            // Handle profile image upload
+            if ($request->hasFile('profile_image')) {
+                // Delete old image if exists
+                if ($student->profile_image) {
+                    Storage::delete('public/' . $student->profile_image);
+                }
+                
+                $path = $request->file('profile_image')->store('public/student_profile_images');
+                $data['profile_image'] = str_replace('public/', '', $path);
             }
 
             // Super admin can change institute, admin cannot
@@ -140,6 +188,12 @@ class StudentController extends Controller
     {
         try {
             $student = User::role('Student')->findOrFail($id);
+            
+            // Delete profile image if exists
+            if ($student->profile_image) {
+                Storage::delete('public/' . $student->profile_image);
+            }
+            
             $student->delete();
             
             return response()->json([

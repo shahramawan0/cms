@@ -113,9 +113,12 @@ Route::middleware(['auth'])->group(function () {
 Route::middleware(['auth'])->group(function () {
     // Enrollment Routes
     Route::get('/enrollments', [StudentEnrollmentController::class, 'index'])->name('enrollments.index');
+    Route::get('/enrollments/edit/{id}', [StudentEnrollmentController::class, 'edit'])->name('enrollments.edit');
     Route::get('/enrollments/students', [StudentEnrollmentController::class, 'getStudents'])->name('enrollments.students');
     Route::get('/enrollments/dropdowns', [StudentEnrollmentController::class, 'getDropdowns'])->name('enrollments.dropdowns');
     Route::post('/enrollments/store', [StudentEnrollmentController::class, 'store'])->name('enrollments.store');
+    Route::put('/enrollments/update/{id}', [StudentEnrollmentController::class, 'update'])->name('enrollments.update');
+
     Route::get('/enrollments/data', [StudentEnrollmentController::class, 'getEnrollments'])->name('enrollments.data');
     Route::delete('/enrollments/delete/{id}', [StudentEnrollmentController::class, 'destroy'])->name('enrollments.destroy');
 });
@@ -148,4 +151,8 @@ Route::group(['middleware' => ['auth']], function() {
     Route::get('/sections/edit/{id}', [SectionController::class, 'edit'])->name('sections.edit');
     Route::put('/sections/update/{id}', [SectionController::class, 'update'])->name('sections.update');
     Route::delete('/sections/delete/{id}', [SectionController::class, 'destroy'])->name('sections.destroy');
+});
+
+Route::get('/EnrollCourse', function () {
+    return view('enrollments.teacherCourseEnrollment.index');
 });
