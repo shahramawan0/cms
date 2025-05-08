@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\StudentEnrollment;
+use App\Models\StudentEnrollCourse;
 use App\Models\User;
 use App\Models\Institute;
 use App\Models\Session;
@@ -13,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Spatie\Permission\Models\Role;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class StudentEnrollmentController extends Controller
 {
@@ -97,22 +99,39 @@ class StudentEnrollmentController extends Controller
             'session_id' => 'required|exists:sessions,id',
             'class_id' => 'required|exists:classes,id',
             'section_id' => 'required|exists:sections,id',
-            'course_id' => 'required|exists:courses,id',
+            'courses' => 'required|array',
+            'courses.*' => 'exists:courses,id',
             'enrollment_date' => 'required|date',
             'status' => 'required|in:active,inactive,archived',
         ]);
 
+        DB::beginTransaction();
+
         try {
-            $data = $request->all();
-            $data['created_by'] = Auth::id();
+            $enrollments = [];
             
-            $enrollment = StudentEnrollment::create($data);
+            foreach ($request->courses as $courseId) {
+                $enrollments[] = StudentEnrollment::create([
+                    'student_id' => $request->student_id,
+                    'institute_id' => $request->institute_id,
+                    'session_id' => $request->session_id,
+                    'class_id' => $request->class_id,
+                    'section_id' => $request->section_id,
+                    'course_id' => $courseId, // Store individual course ID
+                    'enrollment_date' => $request->enrollment_date,
+                    'status' => $request->status,
+                    'created_by' => Auth::id()
+                ]);
+            }
+
+            DB::commit();
 
             return response()->json([
                 'success' => true,
                 'message' => 'Student enrolled successfully!'
             ]);
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Error enrolling student: ' . $e->getMessage()
@@ -123,8 +142,17 @@ class StudentEnrollmentController extends Controller
     public function edit($id)
     {
         try {
-            $enrollment = StudentEnrollment::with(['student', 'institute', 'session', 'class', 'section', 'course'])
+            // Get the first enrollment record for this student/session/class/section
+            $enrollment = StudentEnrollment::with(['student', 'institute', 'session', 'class', 'section'])
                 ->findOrFail($id);
+                
+            // Get all course IDs for this enrollment group
+            $courseIds = StudentEnrollment::where([
+                'student_id' => $enrollment->student_id,
+                'session_id' => $enrollment->session_id,
+                'class_id' => $enrollment->class_id,
+                'section_id' => $enrollment->section_id
+            ])->pluck('course_id')->toArray();
                 
             return response()->json([
                 'id' => $enrollment->id,
@@ -133,9 +161,9 @@ class StudentEnrollmentController extends Controller
                 'session_id' => $enrollment->session_id,
                 'class_id' => $enrollment->class_id,
                 'section_id' => $enrollment->section_id,
-                'course_id' => $enrollment->course_id,
                 'enrollment_date' => $enrollment->enrollment_date,
-                'status' => $enrollment->status
+                'status' => $enrollment->status,
+                'course_ids' => $courseIds // Return all course IDs for this enrollment
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -145,8 +173,23 @@ class StudentEnrollmentController extends Controller
         }
     }
 
-    public function update(Request $request, $id)
+    public function getEnrolledCourses($enrollmentId)
+    {
+        try {
+            $courses = StudentEnrollCourse::where('st_enroll_id', $enrollmentId)
+                ->get(['course_id']);
+                
+                
+            return response()->json($courses);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to load enrolled courses',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
 
+    public function update(Request $request, $id)
     {
         $request->validate([
             'student_id' => 'required|exists:users,id',
@@ -154,23 +197,77 @@ class StudentEnrollmentController extends Controller
             'session_id' => 'required|exists:sessions,id',
             'class_id' => 'required|exists:classes,id',
             'section_id' => 'required|exists:sections,id',
-            'course_id' => 'required|exists:courses,id',
+            'courses' => 'required|array',
+            'courses.*' => 'exists:courses,id',
             'enrollment_date' => 'required|date',
             'status' => 'required|in:active,inactive,archived',
         ]);
 
+        DB::beginTransaction();
+
         try {
-            $enrollment = StudentEnrollment::findOrFail($id);
-            $data = $request->all();
-            $data['updated_by'] = Auth::id();
+            // Get the existing enrollment to find all related records
+            $existingEnrollment = StudentEnrollment::findOrFail($id);
             
-            $enrollment->update($data);
+            // Get all existing enrollment IDs for this student/session/class/section
+            $existingEnrollments = StudentEnrollment::where([
+                'student_id' => $existingEnrollment->student_id,
+                'session_id' => $existingEnrollment->session_id,
+                'class_id' => $existingEnrollment->class_id,
+                'section_id' => $existingEnrollment->section_id
+            ])->get();
+            
+            // Get existing course IDs
+            $existingCourseIds = $existingEnrollments->pluck('course_id')->toArray();
+            $newCourseIds = $request->courses;
+            
+            // Courses to add
+            $coursesToAdd = array_diff($newCourseIds, $existingCourseIds);
+            foreach ($coursesToAdd as $courseId) {
+                StudentEnrollment::create([
+                    'student_id' => $request->student_id,
+                    'institute_id' => $request->institute_id,
+                    'session_id' => $request->session_id,
+                    'class_id' => $request->class_id,
+                    'section_id' => $request->section_id,
+                    'course_id' => $courseId,
+                    'enrollment_date' => $request->enrollment_date,
+                    'status' => $request->status,
+                    'updated_by' => Auth::id()
+                ]);
+            }
+            
+            // Courses to remove
+            $coursesToRemove = array_diff($existingCourseIds, $newCourseIds);
+            if (!empty($coursesToRemove)) {
+                StudentEnrollment::where([
+                    'student_id' => $request->student_id,
+                    'session_id' => $request->session_id,
+                    'class_id' => $request->class_id,
+                    'section_id' => $request->section_id
+                ])->whereIn('course_id', $coursesToRemove)->delete();
+            }
+            
+            // Update common fields for all remaining enrollments
+            StudentEnrollment::where([
+                'student_id' => $request->student_id,
+                'session_id' => $request->session_id,
+                'class_id' => $request->class_id,
+                'section_id' => $request->section_id
+            ])->update([
+                'enrollment_date' => $request->enrollment_date,
+                'status' => $request->status,
+                'updated_by' => Auth::id()
+            ]);
+
+            DB::commit();
 
             return response()->json([
                 'success' => true,
                 'message' => 'Enrollment updated successfully!'
             ]);
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Error updating enrollment: ' . $e->getMessage()
@@ -182,7 +279,10 @@ class StudentEnrollmentController extends Controller
     {
         $user = auth()->user();
 
-        $query = StudentEnrollment::with(['student', 'institute', 'session', 'class', 'section', 'course']);
+        // Group enrollments by student/session/class/section
+        $query = StudentEnrollment::with(['student', 'institute', 'session', 'class', 'section'])
+            ->select('student_id', 'institute_id', 'session_id', 'class_id', 'section_id')
+            ->groupBy('student_id', 'institute_id', 'session_id', 'class_id', 'section_id');
 
         if ($user->hasRole('Admin')) {
             $query->where('institute_id', $user->institute_id);
@@ -204,26 +304,59 @@ class StudentEnrollmentController extends Controller
             ->addColumn('section', function($enrollment) {
                 return optional($enrollment->section)->section_name ?? 'N/A';
             })
-            ->addColumn('course', function($enrollment) {
-                return optional($enrollment->course)->course_name ?? 'N/A';
+            ->addColumn('courses', function($enrollment) {
+                // Get all courses for this enrollment group
+                $courses = Course::join('student_enrollments', 'courses.id', '=', 'student_enrollments.course_id')
+                    ->where([
+                        'student_enrollments.student_id' => $enrollment->student_id,
+                        'student_enrollments.session_id' => $enrollment->session_id,
+                        'student_enrollments.class_id' => $enrollment->class_id,
+                        'student_enrollments.section_id' => $enrollment->section_id
+                    ])
+                    ->pluck('courses.course_name')
+                    ->toArray();
+                
+                return implode(', ', $courses);
             })
             ->addColumn('enrollment_date', function($enrollment) {
-                return $enrollment->enrollment_date;
+                // Get the enrollment date from any of the records (they should be the same)
+                return StudentEnrollment::where([
+                    'student_id' => $enrollment->student_id,
+                    'session_id' => $enrollment->session_id,
+                    'class_id' => $enrollment->class_id,
+                    'section_id' => $enrollment->section_id
+                ])->value('enrollment_date');
             })
             ->addColumn('status', function($enrollment) {
-                return $enrollment->status === 'active'
+                // Get the status from any of the records (they should be the same)
+                $status = StudentEnrollment::where([
+                    'student_id' => $enrollment->student_id,
+                    'session_id' => $enrollment->session_id,
+                    'class_id' => $enrollment->class_id,
+                    'section_id' => $enrollment->section_id
+                ])->value('status');
+                
+                return $status === 'active'
                     ? '<span class="badge bg-success">Active</span>'
-                    : ($enrollment->status === 'inactive' 
+                    : ($status === 'inactive' 
                         ? '<span class="badge bg-warning">Inactive</span>'
                         : '<span class="badge bg-secondary">Archived</span>');
             })
             ->addColumn('action', function($enrollment) {
+                // Get any ID from the group to use for edit/delete
+                $id = StudentEnrollment::where([
+                    'student_id' => $enrollment->student_id,
+                    'session_id' => $enrollment->session_id,
+                    'class_id' => $enrollment->class_id,
+                    'section_id' => $enrollment->section_id
+                ])->value('id');
+                
                 return '
                     <div class="btn-group">
-                        <button class="btn btn-sm btn-primary edit-btn me-1" data-id="'.$enrollment->id.'">
+                        <button class="btn btn-sm btn-primary edit-btn me-1" data-id="'.$id.'">
                             <i class="fas fa-edit"></i> Edit
                         </button>
-                        <button class="btn btn-sm btn-danger delete-btn" data-id="'.$enrollment->id.'">
+                        <button class="btn btn-sm btn-danger delete-btn" data-id="'.$id.'">
                             <i class="fas fa-trash"></i> Delete
                         </button>
                     </div>
@@ -233,19 +366,31 @@ class StudentEnrollmentController extends Controller
             ->make(true);
     }
 
+
     public function destroy($id)
     {
+        DB::beginTransaction();
+
         try {
+            // Get the enrollment to find all related records
             $enrollment = StudentEnrollment::findOrFail($id);
-            $enrollment->updated_by = Auth::id();
-            $enrollment->save();
-            $enrollment->delete();
             
+            // Delete all enrollments for this student/session/class/section
+            StudentEnrollment::where([
+                'student_id' => $enrollment->student_id,
+                'session_id' => $enrollment->session_id,
+                'class_id' => $enrollment->class_id,
+                'section_id' => $enrollment->section_id
+            ])->delete();
+
+            DB::commit();
+
             return response()->json([
                 'success' => true,
                 'message' => 'Enrollment deleted successfully!'
             ]);
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Error deleting enrollment: ' . $e->getMessage()

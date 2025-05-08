@@ -12,6 +12,7 @@ use App\Http\Controllers\SessionController;
 use App\Http\Controllers\ClassController;
 use App\Http\Controllers\SectionController;
 use App\Http\Controllers\StudentEnrollmentController;
+use App\Http\Controllers\TeacherCourseEnrollController;
 
 
 
@@ -121,8 +122,17 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/enrollments/data', [StudentEnrollmentController::class, 'getEnrollments'])->name('enrollments.data');
     Route::delete('/enrollments/delete/{id}', [StudentEnrollmentController::class, 'destroy'])->name('enrollments.destroy');
-});
+    Route::get('/enrollments/courses/{id}', [StudentEnrollmentController::class, 'getEnrolledCourses'])->name('enrollment.course');
 
+});
+Route::group(['middleware' => ['auth']], function() {
+    // Teacher Course Assignments
+    Route::get('teacher/enrollments', [TeacherCourseEnrollController::class, 'index'])->name('teacher.enrollments.index');
+    Route::get('teacher/enrollments/data', [TeacherCourseEnrollController::class, 'getEnrollments'])->name('teacher.enrollments.data');
+    Route::get('teacher/enrollments/session-data', [TeacherCourseEnrollController::class, 'getSessionData'])->name('teacher.enrollments.session-data');
+    Route::post('teacher/enrollments', [TeacherCourseEnrollController::class, 'store'])->name('teacher.enrollments.store');
+    Route::post('teacher/enrollments/unassign', [TeacherCourseEnrollController::class, 'unassignTeacher'])->name('teacher.enrollments.unassign');
+});
 Route::group(['middleware' => ['auth']], function() {
     // Session Routes
     Route::get('/sessions', [SessionController::class, 'index'])->name('sessions.index');

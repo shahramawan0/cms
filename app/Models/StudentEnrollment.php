@@ -16,7 +16,8 @@ class StudentEnrollment extends Model
         'section_id',
         'course_id',
         'enrollment_date',
-        'status'
+        'status',
+        'created_by'
     ];
 
     public function student()
@@ -44,8 +45,18 @@ class StudentEnrollment extends Model
         return $this->belongsTo(Section::class);
     }
 
+    // In App\Models\StudentEnrollment.php
+    public function enrolledCourses()
+    {
+        return $this->hasMany(StudentEnrollCourse::class, 'st_enroll_id')->with('course');
+    }
+
     public function course()
     {
-        return $this->belongsTo(Course::class,'course_id');
+        return $this->belongsTo(Course::class, 'course_id');
+    }
+    public function teacher()
+    {
+        return $this->belongsTo(User::class, 'teacher_id');
     }
 }

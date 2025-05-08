@@ -87,18 +87,6 @@
                                     <div class="invalid-feedback" id="section_id_error"></div>
                                 </div>
                             </div>
-                            
-                            <div class="col-md-4">
-                                <div class="form-group">
-                                    <label for="course_id">Course <span class="text-danger">*</span></label>
-                                    <select name="course_id" id="course_id" class="form-control select2" required>
-                                        <option value="">Select Course</option>
-                                    </select>
-                                    <div class="invalid-feedback" id="course_id_error"></div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row">
                             <div class="col-md-4">
                                 <div class="form-group">
                                     <label for="status">Status <span class="text-danger">*</span></label>
@@ -110,11 +98,28 @@
                                     <div class="invalid-feedback" id="status_error"></div>
                                 </div>
                             </div>
+                        </div>
+                        <div class="row">
                             <div class="col-md-4">
                                 <div class="form-group">
                                     <label for="enrollment_date">Enrollment Date <span class="text-danger">*</span></label>
                                     <input type="date" name="enrollment_date" id="enrollment_date" class="form-control" required>
                                     <div class="invalid-feedback" id="enrollment_date_error"></div>
+                                </div>
+                            </div>
+                        </div>
+                         <!-- New Courses Checkbox Section -->
+                         <div class="row mt-3">
+                            <div class="col-md-12">
+                                <div class="form-group">
+                                    <label>Course Selection <span class="text-danger">*</span></label>
+                                    <div id="courses-container" class="row">
+                                        <!-- Dynamic courses will be loaded here -->
+                                        <div class="col-12">
+                                            <p class="text-muted">Please select institute and session to load available courses</p>
+                                        </div>
+                                    </div>
+                                    <div class="invalid-feedback" id="courses_error"></div>
                                 </div>
                             </div>
                         </div>
@@ -141,7 +146,7 @@
                                 <th>Session</th>
                                 <th>Class</th>
                                 <th>Section</th>
-                                <th>Course</th>
+                                <th>Courses</th>
                                 <th>Enrollment Date</th>
                                 <th>Status</th>
                                 <th>Actions</th>
@@ -157,19 +162,13 @@
     </div>
 </div>
 @endsection
-@push('styles')
- <style>
-    
-    </style>
 
-@endpush
 @push('scripts')
 <script>
     $(document).ready(function() {
         $('.select2').select2({
             width: '100%',
-        allowClear: true
-
+            allowClear: true
         });
     });
 </script>
@@ -187,7 +186,7 @@ $(document).ready(function() {
             { data: 'session', name: 'session' },
             { data: 'class', name: 'class' },
             { data: 'section', name: 'section' },
-            { data: 'course', name: 'course' },
+            { data: 'courses', name: 'courses' },
             { data: 'enrollment_date', name: 'enrollment_date' },
             { data: 'status', name: 'status' },
             { data: 'action', name: 'action', orderable: false, searchable: false }
@@ -361,23 +360,43 @@ $(document).ready(function() {
         });
     }
 
-    // Function to load courses
+    // Function to load courses as checkboxes
     function loadCourses(instituteId, callback) {
         $.ajax({
             url: "{{ route('enrollments.dropdowns') }}",
             type: "GET",
             data: { institute_id: instituteId },
             success: function(data) {
-                $('#course_id').empty().append('<option value="">Select Course</option>');
+                $('#courses-container').empty();
+                
                 if(data.courses && data.courses.length > 0) {
-                    $.each(data.courses, function(key, value) {
-                        $('#course_id').append(`<option value="${value.id}">${value.course_name}</option>`);
+                    // Add a heading
+                    $('#courses-container').append('<div class="col-12"><h6>Available Courses:</h6></div>');
+                    
+                    // Add courses as checkboxes
+                    $.each(data.courses, function(key, course) {
+                        $('#courses-container').append(`
+                            <div class="col-md-3 mb-2">
+                                <div class="form-check">
+                                    <input class="form-check-input course-checkbox" type="checkbox" 
+                                        name="courses[]" id="course_${course.id}" 
+                                        value="${course.id}">
+                                    <label class="form-check-label" for="course_${course.id}">
+                                        ${course.course_name}
+                                    </label>
+                                </div>
+                            </div>
+                        `);
                     });
+                } else {
+                    $('#courses-container').append('<div class="col-12"><p class="text-muted">No courses available for this institute</p></div>');
                 }
+                
                 if (callback) callback();
             },
             error: function(xhr) {
                 console.error('Error loading courses:', xhr.responseText);
+                $('#courses-container').html('<div class="col-12"><p class="text-danger">Error loading courses</p></div>');
                 if (callback) callback();
             }
         });
@@ -395,12 +414,21 @@ $(document).ready(function() {
 
     // Function to clear all dropdowns
     function clearAllDropdowns() {
-        $('#student_id, #session_id, #class_id, #section_id, #course_id').empty().append('<option value="">Select</option>');
+        $('#student_id, #session_id, #class_id, #section_id').empty().append('<option value="">Select</option>');
+        $('#courses-container').empty().append('<div class="col-12"><p class="text-muted">Please select institute and session to load available courses</p></div>');
     }
 
     // Form submission
     $('#enrollmentForm').submit(function(e) {
         e.preventDefault();
+        
+        // Validate at least one course is selected
+        if ($('.course-checkbox:checked').length === 0) {
+            $('#courses_error').text('Please select at least one course').show();
+            return false;
+        } else {
+            $('#courses_error').hide();
+        }
         
         // Show loader
         $('#submitBtn').prop('disabled', true);
@@ -413,18 +441,15 @@ $(document).ready(function() {
         
         var formData = $(this).serialize();
         var url = $('#enrollment_id').val()
-    ? '/enrollments/update/' + $('#enrollment_id').val()
-    : "{{ route('enrollments.store') }}";
+            ? '/enrollments/update/' + $('#enrollment_id').val()
+            : "{{ route('enrollments.store') }}";
 
-        // var method = $('#enrollment_id').val() ? 'PUT' : 'POST';
         var method = 'POST'; // Always POST, Laravel will detect method via _method spoofing
-
         
         // If updating, add the ID to the form data
-       if ($('#enrollment_id').val()) {
-    formData += '&_method=PUT&id=' + $('#enrollment_id').val();
-}
-
+        if ($('#enrollment_id').val()) {
+            formData += '&_method=PUT&id=' + $('#enrollment_id').val();
+        }
         
         $.ajax({
             url: url,
@@ -524,61 +549,66 @@ $(document).ready(function() {
     
     // Function to load initial data for edit
     function loadInitialDataForEdit(enrollmentData) {
-        var instituteId = enrollmentData.institute_id;
+    var instituteId = enrollmentData.institute_id;
+    
+    // Load students
+    loadStudents(instituteId, function() {
+        $('#student_id').val(enrollmentData.student_id);
+    });
+    
+    // Load sessions
+    loadSessions(instituteId, function() {
+        $('#session_id').val(enrollmentData.session_id);
         
-        // Load students
-        loadStudents(instituteId, function() {
-            $('#student_id').val(enrollmentData.student_id);
-        });
-        
-        // Load sessions
-        loadSessions(instituteId, function() {
-            $('#session_id').val(enrollmentData.session_id);
-            
-            // Load classes for this session
-            $.ajax({
-                url: "{{ route('enrollments.dropdowns') }}",
-                type: "GET",
-                data: { 
-                    institute_id: instituteId,
-                    session_id: enrollmentData.session_id
-                },
-                success: function(data) {
-                    $('#class_id').empty().append('<option value="">Select Class</option>');
-                    if (data.classes && data.classes.length > 0) {
-                        $.each(data.classes, function(key, value) {
-                            $('#class_id').append(`<option value="${value.id}">${value.name}</option>`);
-                        });
-                        $('#class_id').val(enrollmentData.class_id);
-                        
-                        // Load sections for this class
-                        $.ajax({
-                            url: "{{ route('enrollments.dropdowns') }}",
-                            type: "GET",
-                            data: {
-                                class_id: enrollmentData.class_id,
-                                institute_id: instituteId
-                            },
-                            success: function(data) {
-                                $('#section_id').empty().append('<option value="">Select Section</option>');
-                                if (data.sections && data.sections.length > 0) {
-                                    $.each(data.sections, function(key, value) {
-                                        $('#section_id').append(`<option value="${value.id}">${value.section_name}</option>`);
+        // Load classes for this session
+        $.ajax({
+            url: "{{ route('enrollments.dropdowns') }}",
+            type: "GET",
+            data: { 
+                institute_id: instituteId,
+                session_id: enrollmentData.session_id
+            },
+            success: function(data) {
+                $('#class_id').empty().append('<option value="">Select Class</option>');
+                if (data.classes && data.classes.length > 0) {
+                    $.each(data.classes, function(key, value) {
+                        $('#class_id').append(`<option value="${value.id}">${value.name}</option>`);
+                    });
+                    $('#class_id').val(enrollmentData.class_id);
+                    
+                    // Load sections for this class
+                    $.ajax({
+                        url: "{{ route('enrollments.dropdowns') }}",
+                        type: "GET",
+                        data: {
+                            class_id: enrollmentData.class_id,
+                            institute_id: instituteId
+                        },
+                        success: function(data) {
+                            $('#section_id').empty().append('<option value="">Select Section</option>');
+                            if (data.sections && data.sections.length > 0) {
+                                $.each(data.sections, function(key, value) {
+                                    $('#section_id').append(`<option value="${value.id}">${value.section_name}</option>`);
+                                });
+                            }
+                            $('#section_id').val(enrollmentData.section_id);
+                            
+                            // Now load courses and check the enrolled ones
+                            loadCourses(instituteId, function() {
+                                // Check the checkboxes for enrolled courses
+                                if (enrollmentData.course_ids && enrollmentData.course_ids.length > 0) {
+                                    enrollmentData.course_ids.forEach(function(courseId) {
+                                        $('#course_' + courseId).prop('checked', true);
                                     });
                                 }
-                                $('#section_id').val(enrollmentData.section_id);
-                            }
-                        });
-                    }
+                            });
+                        }
+                    });
                 }
-            });
+            }
         });
-        
-        // Load courses
-        loadCourses(instituteId, function() {
-            $('#course_id').val(enrollmentData.course_id);
-        });
-    }
+    });
+}
 
     // Delete button click
     $(document).on('click', '.delete-btn', function() {
