@@ -48,40 +48,28 @@
                             </div>
                             <div class="col-md-4">
                                 <div class="form-group">
-                                    <label for="status">Status <span class="text-danger">*</span></label>
-                                    <select name="status" id="status" class="form-control" required>
-                                        <option value="active">Active</option>
-                                        <option value="inactive">Inactive</option>
-                                        <option value="archived">Archived</option>
-                                    </select>
-                                    <div class="invalid-feedback" id="status_error"></div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row mt-3">
-                            <div class="col-md-12">
-                                <div class="form-group">
                                     <label for="description">Description</label>
                                     <textarea name="description" id="description" 
                                               class="form-control" rows="2"></textarea>
                                 </div>
                             </div>
                         </div>
+                       
                         <div class="row mt-3">
                             <div class="col-md-12">
-                                <button type="submit" id="submitBtn" class="btn btn-primary">
+                                <button type="submit" id="submitBtn" class="btn btn-primary btn-sm">
                                     <span id="submitBtnText">Submit</span>
                                     <span id="submitBtnLoader" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                                 </button>
-                                <button type="button" id="cancelBtn" class="btn btn-secondary">Cancel</button>
+                                <button type="button" id="cancelBtn" class="btn btn-secondary btn-sm">Cancel</button>
                             </div>
                         </div>
                     </form>
                 </div>
                 
                 <!-- Sections Table -->
-                <div class="card-body">
-                    <table id="sections-table" class="table table-bordered table-striped">
+                <div class="card-body" style="border-top:1px solid #000">
+                    <table id="sections-table" class="table  table-striped">
                         <thead>
                             <tr>
                                 <th>ID</th>
@@ -105,6 +93,19 @@
 @push('scripts')
 <script>
 $(document).ready(function() {
+    // Initialize Toast
+    const Toast = Swal.mixin({
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+        didOpen: (toast) => {
+            toast.addEventListener('mouseenter', Swal.stopTimer)
+            toast.addEventListener('mouseleave', Swal.resumeTimer)
+        }
+    });
+
     // Initialize DataTable
     var table = $('#sections-table').DataTable({
         processing: true,
@@ -172,13 +173,10 @@ $(document).ready(function() {
                 // Hide form
                 $('#sectionFormContainer').hide();
                 
-                // Show success message
-                Swal.fire({
+                // Show success toast
+                Toast.fire({
                     icon: 'success',
-                    title: 'Success',
-                    text: response.message,
-                    timer: 2000,
-                    showConfirmButton: false
+                    title: response.message
                 });
                 
                 // Reload table
@@ -193,10 +191,9 @@ $(document).ready(function() {
                         $('#'+field+'_error').text(errors[field][0]);
                     }
                 } else {
-                    Swal.fire({
+                    Toast.fire({
                         icon: 'error',
-                        title: 'Error',
-                        text: 'Something went wrong!'
+                        title: 'Something went wrong!'
                     });
                 }
             },
@@ -234,10 +231,9 @@ $(document).ready(function() {
                 }, 500);
             },
             error: function(xhr) {
-                Swal.fire({
+                Toast.fire({
                     icon: 'error',
-                    title: 'Error',
-                    text: 'Failed to load section data!'
+                    title: 'Failed to load section data!'
                 });
             },
             complete: function() {
@@ -271,19 +267,17 @@ $(document).ready(function() {
                         _token: "{{ csrf_token() }}"
                     },
                     success: function(response) {
-                        Swal.fire(
-                            'Deleted!',
-                            response.message,
-                            'success'
-                        );
+                        Toast.fire({
+                            icon: 'success',
+                            title: response.message
+                        });
                         table.ajax.reload(null, false);
                     },
                     error: function(xhr) {
-                        Swal.fire(
-                            'Error!',
-                            'Something went wrong while deleting.',
-                            'error'
-                        );
+                        Toast.fire({
+                            icon: 'error',
+                            title: 'Something went wrong while deleting.'
+                        });
                     },
                     complete: function() {
                         // Reset button text

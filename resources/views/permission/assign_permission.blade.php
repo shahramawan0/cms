@@ -45,33 +45,31 @@
                             
                             <div class="row">
                                 @foreach($modules as $module)
-                                <div class="col-md-4 mb-3">
+                                <div class="col-md-12 mb-3">
                                     <div class="d-flex align-items-center">
                                         <span class="font-weight-bold text-capitalize mr-2" style="font-size:1rem; min-width: 110px;">
                                             {{ ucfirst($module['name']) }}
                                         </span>
-                                        
-                                        <div class="d-flex">
-                                            @foreach(['view', 'edit', 'delete'] as $action)
-                                                @if(isset($module['permissions'][$action]))
-                                                <div class="d-flex align-items-center" style="margin-right: 12px;">
+                                        <div class="d-flex flex-wrap">
+                                            @foreach($module['permissions'] as $action => $permission)
+                                                <div class="d-flex align-items-center me-3 mb-2">
                                                     <label class="switch me-2 mb-0">
                                                         <input type="checkbox" 
-                                                               class="form-check-input permission-checkbox" 
-                                                               name="permissions[]"
-                                                               value="{{ $module['permissions'][$action]->id }}"
-                                                               id="perm_{{ $module['permissions'][$action]->id }}"
-                                                               @if(isset($selectedPermissions) && in_array($module['permissions'][$action]->id, $selectedPermissions)) checked @endif>
+                                                            class="form-check-input permission-checkbox" 
+                                                            name="permissions[]"
+                                                            value="{{ $permission->id }}"
+                                                            id="perm_{{ $permission->id }}"
+                                                            @if(isset($selectedPermissions) && in_array($permission->id, $selectedPermissions)) checked @endif>
                                                         <span class="slider round"></span>
                                                     </label>
                                                     <span class="text-capitalize">{{ $action }}</span>
                                                 </div>
-                                                @endif
                                             @endforeach
                                         </div>
                                     </div>
                                 </div>
-                                @endforeach
+                            @endforeach
+
                             </div>
                             
                             <div class="text-center mt-4">

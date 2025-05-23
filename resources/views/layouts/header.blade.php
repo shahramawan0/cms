@@ -13,7 +13,7 @@
 <meta name="format-detection" content="telephone=no">
 
 <!-- PAGE TITLE -->
-<title>Yash Admin Sales Management System</title>
+<title>Learning Management System</title>
 
 <!-- FAVICON -->
 <link rel="shortcut icon" type="image/png" href="{{ asset('images/favicon.png') }}">
@@ -30,3 +30,8 @@
 
 <!-- Select2 CSS -->
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+
+<!-- fontawsom icons  -->
+<!-- Font Awesome CDN -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+

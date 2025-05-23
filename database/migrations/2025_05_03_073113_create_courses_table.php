@@ -16,21 +16,14 @@ return new class extends Migration
             $table->string('course_name');
             $table->string('course_code')->unique()->nullable(); // Optional
             $table->text('description')->nullable();
-            $table->string('book_name')->nullable();
+            $table->integer('total_marks');
+            $table->integer('credit_hours');
             $table->unsignedBigInteger('created_by')->nullable();
             $table->unsignedBigInteger('updated_by')->nullable();
-            
             $table->unsignedBigInteger('institute_id')->nullable();
-
-            $table->enum('level', ['Beginner', 'Intermediate', 'Advanced']);
-            $table->enum('language', ['Urdu', 'Arabic', 'English', 'Urdu/English'])->default('Urdu');
             $table->integer('duration_months')->nullable();
-            $table->date('start_date')->nullable();
-            $table->date('end_date')->nullable();
             $table->boolean('is_active')->default(true);
             $table->timestamps();
-
-            
             $table->foreign('created_by')->references('id')->on('users')->onDelete('set null');
             $table->foreign('updated_by')->references('id')->on('users')->onDelete('set null');
             $table->foreign('institute_id')->references('id')->on('institutes')->onDelete('set null');

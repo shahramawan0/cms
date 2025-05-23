@@ -75,8 +75,8 @@
                         <!-- Courses Table (Will be shown after session selection) -->
                         <div class="row mt-3" id="coursesTableContainer" style="display: none;">
                             <div class="col-md-12">
-                                <button type="button" id="assignSelectedBtn" class="btn btn-primary mb-3" style="display: none;">
-                                    <i class="fas fa-user-plus"></i> Assign Selected Courses
+                                <button type="button" id="assignSelectedBtn" class="btn btn-primary mb-3 btn-sm" style="display: none;">
+                                    <i class="fas fa-user-plus"></i> Enroll Selected Courses
                                 </button>
                                 <div class="table-responsive">
                                     <table class="table table-bordered" id="coursesTable">
@@ -99,18 +99,18 @@
                         
                         <div class="row mt-3">
                             <div class="col-md-12">
-                                <button type="submit" id="submitBtn" class="btn btn-primary">
+                                {{-- <button type="submit" id="submitBtn" class="btn btn-primary">
                                     <span id="submitBtnText">Submit</span>
                                     <span id="submitBtnLoader" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-                                </button>
-                                <button type="button" id="cancelBtn" class="btn btn-secondary">Cancel</button>
+                                </button> --}}
+                                <button type="button" id="cancelBtn" class="btn btn-secondary btn-sm">Cancel</button>
                             </div>
                         </div>
                     </form>
                 </div>
                 
                 <!-- Assignments Table -->
-                <div class="card-body">
+                <div class="card-body" style="border-top:1px solid #000">
                     @if(auth()->user()->hasRole('Super Admin'))
                     <div class="row mb-3">
                         <div class="col-md-4">
@@ -127,7 +127,7 @@
                     </div>
                     @endif
                     
-                    <table id="assignments-table" class="table table-bordered table-striped">
+                    <table id="assignments-table" class="table  table-striped">
                         <thead>
                             <tr>
                                 <th>Teacher</th>
@@ -136,6 +136,7 @@
                                 <th>Class</th>
                                 <th>Section</th>
                                 <th>Course</th>
+                                <th>Students</th>
                                 <th>Enrollment Date</th>
                                 <th>Status</th>
                                 <th>Actions</th>
@@ -157,36 +158,37 @@
 $(document).ready(function() {
     // Initialize DataTable
     var assignmentsTable = $('#assignments-table').DataTable({
-        processing: true,
-        serverSide: true,
-        ajax: {
-            url: "{{ route('teacher.enrollments.data') }}",
-            data: function(d) {
-                @if(auth()->user()->hasRole('Super Admin'))
-                d.institute_id = $('#filter_institute').val();
-                @endif
-            }
-        },
-        columns: [
-            { data: 'teacher_name', name: 'teacher_name' },
-            { data: 'institute', name: 'institute' },
-            { data: 'session', name: 'session' },
-            { data: 'class', name: 'class' },
-            { data: 'section', name: 'section' },
-            { data: 'course', name: 'course' },
-            { data: 'enrollment_date', name: 'enrollment_date' },
-            { data: 'status', name: 'status' },
-            { data: 'action', name: 'action', orderable: false, searchable: false }
-        ],
-        responsive: true,
-        autoWidth: false,
-        language: {
-            paginate: {
-                previous: '<i class="fas fa-angle-left"></i>',
-                next: '<i class="fas fa-angle-right"></i>'
-            }
+    processing: true,
+    serverSide: true,
+    ajax: {
+        url: "{{ route('teacher.enrollments.data') }}",
+        data: function(d) {
+            @if(auth()->user()->hasRole('Super Admin'))
+            d.institute_id = $('#filter_institute').val();
+            @endif
         }
-    });
+    },
+    columns: [
+        { data: 'teacher_name', name: 'teacher_name' },
+        { data: 'institute', name: 'institute' },
+        { data: 'session', name: 'session' },
+        { data: 'class', name: 'class' },
+        { data: 'section', name: 'section' },
+        { data: 'course', name: 'course' },
+        { data: 'student_count', name: 'student_count' },
+        { data: 'enrollment_date', name: 'enrollment_date' },
+        { data: 'status', name: 'status' },
+        { data: 'action', name: 'action', orderable: false, searchable: false }
+    ],
+    responsive: true,
+    autoWidth: false,
+    language: {
+        paginate: {
+            previous: '<i class="fas fa-angle-left"></i>',
+            next: '<i class="fas fa-angle-right"></i>'
+        }
+    }
+});
 
     @if(auth()->user()->hasRole('Super Admin'))
     $('#filter_institute').change(function() {
@@ -289,7 +291,7 @@ $(document).ready(function() {
                                             data-course-id="${course.course_id}"
                                             data-class-id="${course.class_id}"
                                             data-section-id="${course.section_id}">
-                                            <i class="fas fa-user-plus"></i> Assign
+                                            <i class="fas fa-user-plus"></i> Enroll
                                         </button>
                                     </td>
                                 </tr>

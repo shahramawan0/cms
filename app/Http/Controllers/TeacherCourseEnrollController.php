@@ -144,7 +144,22 @@ class TeacherCourseEnrollController extends Controller
                 ])->exists();
 
                 if ($existingAssignment) {
-                    $errors[] = "Teacher is already assigned to course ID $courseId, class ID $classId, section ID $sectionId";
+                    $errors[] = "Teacher is already assigned to this course";
+                    continue;
+                }
+
+                // First, check if there are any enrollments to update
+                $hasEnrollments = StudentEnrollment::where([
+                    'institute_id' => $instituteId,
+                    'session_id' => $request->session_id,
+                    'course_id' => $courseId,
+                    'class_id' => $classId,
+                    'section_id' => $sectionId,
+                    'teacher_id' => null
+                ])->exists();
+
+                if (!$hasEnrollments) {
+                    $errors[] = "No student enrollments found to assign teacher for this course";
                     continue;
                 }
 
@@ -163,8 +178,6 @@ class TeacherCourseEnrollController extends Controller
 
                 if ($updated > 0) {
                     $successCount++;
-                } else {
-                    $errors[] = "No student enrollments found to assign teacher for course ID $courseId, class ID $classId, section ID $sectionId";
                 }
             }
 
@@ -193,65 +206,89 @@ class TeacherCourseEnrollController extends Controller
         }
     }
 
-    public function getEnrollments()
-    {
-        $user = auth()->user();
+    // Update the getEnrollments method in TeacherCourseEnrollController
+public function getEnrollments()
+{
+    $user = auth()->user();
 
-        $query = StudentEnrollment::with(['teacher', 'institute', 'session', 'class', 'section', 'course'])
-            ->whereNotNull('teacher_id');
+    // Start with a query that groups by the unique combinations
+    $query = StudentEnrollment::select([
+            'institute_id',
+            'session_id',
+            'class_id',
+            'section_id',
+            'course_id',
+            'teacher_id',
+            DB::raw('MIN(enrollment_date) as enrollment_date'),
+            DB::raw('MIN(status) as status'),
+            DB::raw('COUNT(student_id) as student_count')
+        ])
+        ->with(['teacher', 'institute', 'session', 'class', 'section', 'course'])
+        ->whereNotNull('teacher_id')
+        ->groupBy([
+            'institute_id',
+            'session_id',
+            'class_id',
+            'section_id',
+            'course_id',
+            'teacher_id'
+        ]);
 
-        if ($user->hasRole('Teacher')) {
-            $query->where('teacher_id', $user->id);
-        } elseif ($user->hasRole('Admin')) {
-            $query->where('institute_id', $user->institute_id);
-        } elseif ($user->hasRole('Super Admin')) {
-            if (request()->has('institute_id')) {
-                $query->where('institute_id', request('institute_id'));
-            }
+    if ($user->hasRole('Teacher')) {
+        $query->where('teacher_id', $user->id);
+    } elseif ($user->hasRole('Admin')) {
+        $query->where('institute_id', $user->institute_id);
+    } elseif ($user->hasRole('Super Admin')) {
+        if (request()->has('institute_id')) {
+            $query->where('institute_id', request('institute_id'));
         }
-
-        return datatables()->of($query)
-            ->addColumn('teacher_name', function($enrollment) {
-                return $enrollment->teacher->name ?? 'N/A';
-            })
-            ->addColumn('institute', function($enrollment) {
-                return $enrollment->institute->name ?? 'N/A';
-            })
-            ->addColumn('session', function($enrollment) {
-                return optional($enrollment->session)->session_name ?? 'N/A';
-            })
-            ->addColumn('class', function($enrollment) {
-                return optional($enrollment->class)->name ?? 'N/A';
-            })
-            ->addColumn('section', function($enrollment) {
-                return optional($enrollment->section)->section_name ?? 'N/A';
-            })
-            ->addColumn('course', function($enrollment) {
-                return optional($enrollment->course)->course_name ?? 'N/A';
-            })
-            ->addColumn('enrollment_date', function($enrollment) {
-                return $enrollment->enrollment_date;
-            })
-            ->addColumn('status', function($enrollment) {
-                return $enrollment->status === 'active'
-                    ? '<span class="badge bg-success">Active</span>'
-                    : ($enrollment->status === 'inactive' 
-                        ? '<span class="badge bg-warning">Inactive</span>'
-                        : '<span class="badge bg-secondary">Archived</span>');
-            })
-            ->addColumn('action', function($enrollment) {
-                return '<button class="btn btn-sm btn-danger unassign-btn" 
-                    data-session-id="'.$enrollment->session_id.'"
-                    data-course-id="'.$enrollment->course_id.'"
-                    data-class-id="'.$enrollment->class_id.'"
-                    data-section-id="'.$enrollment->section_id.'"
-                    data-teacher-id="'.$enrollment->teacher_id.'">
-                    <i class="fas fa-trash"></i> Unassign
-                </button>';
-            })
-            ->rawColumns(['status', 'action'])
-            ->make(true);
     }
+
+    return datatables()->of($query)
+        ->addColumn('teacher_name', function($enrollment) {
+            return $enrollment->teacher->name ?? 'N/A';
+        })
+        ->addColumn('institute', function($enrollment) {
+            return $enrollment->institute->name ?? 'N/A';
+        })
+        ->addColumn('session', function($enrollment) {
+            return optional($enrollment->session)->session_name ?? 'N/A';
+        })
+        ->addColumn('class', function($enrollment) {
+            return optional($enrollment->class)->name ?? 'N/A';
+        })
+        ->addColumn('section', function($enrollment) {
+            return optional($enrollment->section)->section_name ?? 'N/A';
+        })
+        ->addColumn('course', function($enrollment) {
+            return optional($enrollment->course)->course_name ?? 'N/A';
+        })
+        ->addColumn('enrollment_date', function($enrollment) {
+            return $enrollment->enrollment_date;
+        })
+        ->addColumn('student_count', function($enrollment) {
+            return $enrollment->student_count;
+        })
+        ->addColumn('status', function($enrollment) {
+            return $enrollment->status === 'active'
+                ? '<span class="badge bg-success">Active</span>'
+                : ($enrollment->status === 'inactive' 
+                    ? '<span class="badge bg-warning">Inactive</span>'
+                    : '<span class="badge bg-secondary">Archived</span>');
+        })
+        ->addColumn('action', function($enrollment) {
+            return '<button class="btn btn-sm btn-danger unassign-btn" 
+                data-session-id="'.$enrollment->session_id.'"
+                data-course-id="'.$enrollment->course_id.'"
+                data-class-id="'.$enrollment->class_id.'"
+                data-section-id="'.$enrollment->section_id.'"
+                data-teacher-id="'.$enrollment->teacher_id.'">
+                <i class="fas fa-trash"></i> Unassign
+            </button>';
+        })
+        ->rawColumns(['status', 'action'])
+        ->make(true);
+}
 
     public function unassignTeacher(Request $request)
     {

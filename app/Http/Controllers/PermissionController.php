@@ -9,44 +9,45 @@ use Spatie\Permission\Models\Permission;
 class PermissionController extends Controller
 {
     public function showAssignForm(Request $request)
-    {
-        $roles = Role::all();
-        $permissions = Permission::all();
+{
+    $roles = Role::all();
+    $permissions = Permission::all();
 
-        // Group permissions by module
-        $modules = [];
-        foreach ($permissions as $permission) {
-            $parts = explode(' ', $permission->name);
-            if (count($parts) === 2) {
-                $action = $parts[0];
-                $module = $parts[1];
+    // Group permissions by module (using dot notation split)
+    $modules = [];
+    foreach ($permissions as $permission) {
+        $parts = explode('.', $permission->name);
+        if (count($parts) === 2) {
+            $module = $parts[0];
+            $action = $parts[1];
 
-                if (!isset($modules[$module])) {
-                    $modules[$module] = [
-                        'name' => $module,
-                        'permissions' => []
-                    ];
-                }
-
-                $modules[$module]['permissions'][$action] = $permission;
+            if (!isset($modules[$module])) {
+                $modules[$module] = [
+                    'name' => $module,
+                    'permissions' => []
+                ];
             }
+
+            $modules[$module]['permissions'][$action] = $permission;
         }
-
-        // Check if role is passed via query parameter
-        if ($request->has('role')) {
-            $selectedRole = Role::findOrFail($request->role);
-            $selectedPermissions = $selectedRole->permissions->pluck('id')->toArray();
-
-            return view('permission.assign_permission', compact(
-                'roles',
-                'modules',
-                'selectedRole',
-                'selectedPermissions'
-            ));
-        }
-
-        return view('permission.assign_permission', compact('roles', 'modules'));
     }
+
+    // Check if role is passed via query parameter
+    if ($request->has('role')) {
+        $selectedRole = Role::findOrFail($request->role);
+        $selectedPermissions = $selectedRole->permissions->pluck('id')->toArray();
+
+        return view('permission.assign_permission', compact(
+            'roles',
+            'modules',
+            'selectedRole',
+            'selectedPermissions'
+        ));
+    }
+
+    return view('permission.assign_permission', compact('roles', 'modules'));
+}
+
 
     public function assignPermissions(Request $request)
     {

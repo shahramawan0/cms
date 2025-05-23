@@ -1,0 +1,51 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('result_uploads', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('institute_id');
+            $table->unsignedBigInteger('session_id');
+            $table->unsignedBigInteger('class_id');
+            $table->unsignedBigInteger('section_id');
+            $table->unsignedBigInteger('course_id');
+            $table->unsignedBigInteger('teacher_id');
+            $table->unsignedBigInteger('student_enrollment_id');
+            $table->unsignedBigInteger('student_id');
+            $table->decimal('obtained_marks', 8, 2);
+            $table->decimal('total_marks', 8, 2)->default(0);
+            $table->integer('credit_hours')->nullable();
+            $table->unsignedBigInteger('created_by')->nullable();
+            $table->unsignedBigInteger('updated_by')->nullable();
+            $table->timestamps();
+
+            $table->foreign('institute_id')->references('id')->on('institutes')->onDelete('cascade');
+            $table->foreign('session_id')->references('id')->on('sessions')->onDelete('cascade');
+            $table->foreign('class_id')->references('id')->on('classes')->onDelete('cascade');
+            $table->foreign('section_id')->references('id')->on('sections')->onDelete('cascade');
+            $table->foreign('course_id')->references('id')->on('courses')->onDelete('cascade');
+            $table->foreign('teacher_id')->references('id')->on('users')->onDelete('cascade');
+            $table->foreign('student_enrollment_id')->references('id')->on('student_enrollments')->onDelete('cascade');
+            $table->foreign('student_id')->references('id')->on('users')->onDelete('cascade');
+            $table->foreign('created_by')->references('id')->on('users')->onDelete('set null');
+            $table->foreign('updated_by')->references('id')->on('users')->onDelete('set null');
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('result_uploads');
+    }
+};

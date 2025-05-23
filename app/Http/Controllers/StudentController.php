@@ -8,6 +8,12 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rules;
+use App\Models\Session;
+use App\Models\Classes;
+use App\Models\Course;
+use App\Models\Section;
+use Illuminate\Support\Facades\Auth;
+use App\Models\StudentEnrollment;
 
 class StudentController extends Controller
 {
@@ -18,16 +24,65 @@ class StudentController extends Controller
 
     public function getStudents()
     {
-        $user = auth()->user();
-        $query = User::role('Student')->with('institute');
+        $user = Auth::user();
+        
+        // First get students from users table
+        $query = User::whereHas('roles', function($q) {
+            $q->where('name', 'Student');
+        });
 
-        if ($user->hasRole('Admin')) {
-            $query->where('institute_id', $user->institute_id);
+        // If not super admin, restrict to institute
+        if (!$user->roles->pluck('name')->contains('Super Admin')) {
+            $query->where('users.institute_id', $user->institute_id);
+        }
+
+        // Join with student_enrollments and other tables for filtering
+        $query->leftJoin('student_enrollments', 'users.id', '=', 'student_enrollments.student_id')
+            ->leftJoin('sessions', 'student_enrollments.session_id', '=', 'sessions.id')
+            ->leftJoin('classes', 'student_enrollments.class_id', '=', 'classes.id')
+            ->leftJoin('sections', 'student_enrollments.section_id', '=', 'sections.id')
+            ->leftJoin('courses', 'student_enrollments.course_id', '=', 'courses.id')
+            ->leftJoin('users as teachers', 'student_enrollments.teacher_id', '=', 'teachers.id')
+            ->leftJoin('institutes', 'users.institute_id', '=', 'institutes.id')
+            ->select([
+                'users.*',
+                'institutes.name as institute_name',
+                'classes.name as class_name',
+                'sections.section_name',
+                'courses.course_name',
+                'teachers.name as teacher_name',
+                'student_enrollments.enrollment_date'
+            ]);
+
+        // Apply filters if any
+        if (request('session_id')) {
+            $query->where('student_enrollments.session_id', request('session_id'));
+        }
+        if (request('class_id')) {
+            $query->where('student_enrollments.class_id', request('class_id'));
+        }
+        if (request('section_id')) {
+            $query->where('student_enrollments.section_id', request('section_id'));
+        }
+        if (request('course_id')) {
+            $query->where('student_enrollments.course_id', request('course_id'));
+        }
+        if (request('teacher_id')) {
+            $query->where('student_enrollments.teacher_id', request('teacher_id'));
+        }
+        if (request('enrollment_date')) {
+            $query->whereDate('student_enrollments.enrollment_date', request('enrollment_date'));
+        }
+
+        // If any filter is applied, only show students that have enrollments
+        if (request('session_id') || request('class_id') || request('section_id') || 
+            request('course_id') || request('teacher_id') || request('enrollment_date')) {
+            $query->whereNotNull('student_enrollments.id');
         }
 
         return datatables()->of($query)
             ->addColumn('institute', function($student) {
-                return $student->institute ? $student->institute->name : 'N/A';
+                return $student->institute ? $student->institute->institute_name : 'N/A';
             })
             ->addColumn('action', function($student) {
                 return '
@@ -43,6 +98,95 @@ class StudentController extends Controller
             })
             ->rawColumns(['action'])
             ->make(true);
+    }
+
+    public function getFilterOptions()
+    {
+        $user = Auth::user();
+        $instituteId = $user->institute_id;
+        $isSuperAdmin = $user->roles->pluck('name')->contains('Super Admin');
+
+        // Get sessions from student enrollments
+        $sessions = StudentEnrollment::select('sessions.*')
+            ->join('sessions', 'student_enrollments.session_id', '=', 'sessions.id')
+            ->join('users', 'student_enrollments.student_id', '=', 'users.id')
+            ->when(!$isSuperAdmin, function($query) use ($instituteId) {
+                return $query->where('users.institute_id', $instituteId);
+            })
+            ->distinct()
+            ->get();
+
+        // Get classes from student enrollments
+        $classes = StudentEnrollment::select('classes.*')
+            ->join('classes', 'student_enrollments.class_id', '=', 'classes.id')
+            ->join('users', 'student_enrollments.student_id', '=', 'users.id')
+            ->when(!$isSuperAdmin, function($query) use ($instituteId) {
+                return $query->where('users.institute_id', $instituteId);
+            })
+            ->distinct()
+            ->get();
+
+        // Get sections from student enrollments
+        $sections = StudentEnrollment::select('sections.*')
+            ->join('sections', 'student_enrollments.section_id', '=', 'sections.id')
+            ->join('users', 'student_enrollments.student_id', '=', 'users.id')
+            ->when(!$isSuperAdmin, function($query) use ($instituteId) {
+                return $query->where('users.institute_id', $instituteId);
+            })
+            ->distinct()
+            ->get();
+
+        // Get courses from student enrollments
+        $courses = StudentEnrollment::select('courses.*')
+            ->join('courses', 'student_enrollments.course_id', '=', 'courses.id')
+            ->join('users', 'student_enrollments.student_id', '=', 'users.id')
+            ->when(!$isSuperAdmin, function($query) use ($instituteId) {
+                return $query->where('users.institute_id', $instituteId);
+            })
+            ->distinct()
+            ->get();
+
+        // Get teachers from student enrollments
+        $teachers = StudentEnrollment::select('users.*')
+            ->join('users', 'student_enrollments.teacher_id', '=', 'users.id')
+            ->join('users as students', 'student_enrollments.student_id', '=', 'students.id')
+            ->whereHas('teacher', function($q) {
+                $q->whereHas('roles', function($q) {
+                    $q->where('name', 'Teacher');
+                });
+            })
+            ->when(!$isSuperAdmin, function($query) use ($instituteId) {
+                return $query->where('students.institute_id', $instituteId);
+            })
+            ->distinct()
+            ->get();
+
+        return response()->json([
+            'sessions' => $sessions,
+            'classes' => $classes,
+            'sections' => $sections,
+            'courses' => $courses,
+            'teachers' => $teachers
+        ]);
+    }
+
+    public function getSectionsByClass(Request $request)
+    {
+        $user = Auth::user();
+        $isSuperAdmin = $user->roles->pluck('name')->contains('Super Admin');
+        
+        $sections = StudentEnrollment::select('sections.*')
+            ->join('sections', 'student_enrollments.section_id', '=', 'sections.id')
+            ->where('student_enrollments.class_id', $request->class_id)
+            ->when(!$isSuperAdmin, function($query) use ($user) {
+                return $query->join('classes', 'sections.class_id', '=', 'classes.id')
+                    ->join('sessions', 'classes.session_id', '=', 'sessions.id')
+                    ->where('sessions.institute_id', $user->institute_id);
+            })
+            ->distinct()
+            ->get();
+
+        return response()->json(['sections' => $sections]);
     }
 
     public function store(Request $request)

@@ -13,17 +13,30 @@ class TeacherController extends Controller
 {
     public function index()
     {
-        $institutes = [];
-        $admins = [];
-        
-        if (auth()->user()->hasRole('Super Admin')) {
-            $institutes = Institute::get();
+        $user = auth()->user();
+    
+        if ($user->hasRole('Super Admin')) {
+            // Super Admin sees all teachers
+            $teachers = User::role('Teacher')->get();
+        } elseif ($user->hasRole('Admin')) {
+            // Admin sees teachers either in their institute or created by them
+            $teachers = User::role('Teacher')
+                ->where(function ($query) use ($user) {
+                    $query->where('institute_id', $user->institute_id)
+                          ->orWhere('created_by', $user->id);
+                })
+                ->get();
+        } elseif ($user->hasRole('Teacher')) {
+            // Teacher sees only themselves
+            $teachers = User::where('id', $user->id)->get(); // This should work correctly
         } else {
-            $admins = User::where('id', auth()->id())->get();
+            // Other roles see nothing or you can throw error
+            $teachers = collect();
         }
-        
-        return view('teacher.index', compact('institutes', 'admins'));
+    
+        return view('teacher.index', compact('teachers'));
     }
+    
 
     public function getTeachers()
     {

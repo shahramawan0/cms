@@ -13,6 +13,10 @@ use App\Http\Controllers\ClassController;
 use App\Http\Controllers\SectionController;
 use App\Http\Controllers\StudentEnrollmentController;
 use App\Http\Controllers\TeacherCourseEnrollController;
+use App\Http\Controllers\LectureController;
+use App\Http\Controllers\AttendanceController;
+use App\Http\Controllers\TimeTableController;
+use App\Http\Controllers\ResultUploadController;
 
 
 
@@ -99,6 +103,10 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/admin/courses/delete/{id}', [CourseController::class, 'destroy'])->name('admin.courses.destroy');
     Route::get('/admin/courses/view/{id}', [CourseController::class, 'view'])->name('admin.courses.view');
     Route::get('/admin/courses/data', [CourseController::class, 'getCourses'])->name('admin.courses.data');
+    
+    // Assessment Routes
+    Route::get('/admin/courses/{courseId}/assessments', [CourseController::class, 'getAssessments'])->name('admin.courses.assessments');
+    Route::post('/admin/courses/assessments/store', [CourseController::class, 'storeAssessment'])->name('admin.courses.assessments.store');
 });
 
 Route::middleware(['auth'])->group(function () {
@@ -109,6 +117,10 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/students/edit/{id}', [StudentController::class, 'edit'])->name('students.edit');
     Route::put('/students/update/{id}', [StudentController::class, 'update'])->name('students.update');
     Route::delete('/students/delete/{id}', [StudentController::class, 'destroy'])->name('students.destroy');
+    
+    // New filter routes
+    Route::get('students/filter/options', [StudentController::class, 'getFilterOptions'])->name('students.filter.options');
+    Route::get('students/sections/by-class', [StudentController::class, 'getSectionsByClass'])->name('students.sections.by.class');
 });
 
 Route::middleware(['auth'])->group(function () {
@@ -118,11 +130,37 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/enrollments/students', [StudentEnrollmentController::class, 'getStudents'])->name('enrollments.students');
     Route::get('/enrollments/dropdowns', [StudentEnrollmentController::class, 'getDropdowns'])->name('enrollments.dropdowns');
     Route::post('/enrollments/store', [StudentEnrollmentController::class, 'store'])->name('enrollments.store');
+    Route::post('/enrollments/upload-csv', [StudentEnrollmentController::class, 'uploadCsv'])->name('enrollments.upload-csv');
     Route::put('/enrollments/update/{id}', [StudentEnrollmentController::class, 'update'])->name('enrollments.update');
 
     Route::get('/enrollments/data', [StudentEnrollmentController::class, 'getEnrollments'])->name('enrollments.data');
     Route::delete('/enrollments/delete/{id}', [StudentEnrollmentController::class, 'destroy'])->name('enrollments.destroy');
     Route::get('/enrollments/courses/{id}', [StudentEnrollmentController::class, 'getEnrolledCourses'])->name('enrollment.course');
+
+
+        // Route::get('/report', [EnrollmentReportController::class, 'index'])->name('enrollments.report');
+        // Route::post('/report/generate', [EnrollmentReportController::class, 'generateReport'])->name('enrollments.report.generate');
+        // Route::get('/report/student/{id}', [EnrollmentReportController::class, 'studentDetail'])->name('enrollments.report.student');
+        // Route::post('/report/pdf', [EnrollmentReportController::class, 'generatePdf'])->name('enrollments.report.pdf');
+        // Route::post('/report/student-pdf', [EnrollmentReportController::class, 'generateStudentPdf'])->name('enrollments.report.student-pdf');
+
+    
+        Route::get('/enrollments/report', [StudentEnrollmentController::class, 'EnrollmentReport'])->name('enrollments.report');
+
+        Route::post('enrollments/report/generate', [StudentEnrollmentController::class, 'generateReport'])->name('enrollments.report.generate');
+        Route::get('enrollments/report/student/{id}', [StudentEnrollmentController::class, 'studentDetail'])->name('enrollments.report.student');
+        Route::post('enrollments/report/pdf', [StudentEnrollmentController::class, 'generatePdf'])->name('enrollments.report.pdf');
+        Route::post('enrollments/report/student-pdf', [StudentEnrollmentController::class, 'generateStudentPdf'])->name('enrollments.report.student-pdf');
+
+
+        // Add these new routes
+        Route::get('enrollments/report/attendance-details', [StudentEnrollmentController::class, 'attendanceDetails'])->name('enrollments.report.attendance-details');
+        Route::get('enrollments/report/result-details', [StudentEnrollmentController::class, 'resultDetails'])->name('enrollments.report.result-details');
+        Route::post('enrollments/report/generate-attendance-pdf', [StudentEnrollmentController::class, 'generateAttendancePdf'])->name('enrollments.report.generate-attendance-pdf');
+        Route::post('enrollments/report/generate-result-pdf', [StudentEnrollmentController::class, 'generateResultPdf'])->name('enrollments.report.generate-result-pdf');
+
+        
+    
 
 });
 Route::group(['middleware' => ['auth']], function() {
@@ -163,6 +201,85 @@ Route::group(['middleware' => ['auth']], function() {
     Route::delete('/sections/delete/{id}', [SectionController::class, 'destroy'])->name('sections.destroy');
 });
 
-Route::get('/EnrollCourse', function () {
-    return view('enrollments.teacherCourseEnrollment.index');
+
+// Lectures Routes
+Route::prefix('lectures')->group(function () {
+    Route::get('/', [LectureController::class, 'index'])->name('lectures.index');
+    Route::post('/store', [LectureController::class, 'store'])->name('lectures.store');
+    Route::get('/edit/{id}', [LectureController::class, 'edit'])->name('lectures.edit');
+    Route::put('/update/{id}', [LectureController::class, 'update'])->name('lectures.update');
+    Route::delete('/delete/{id}', [LectureController::class, 'destroy'])->name('lectures.destroy');
+    Route::get('/data', [LectureController::class, 'getLectures'])->name('lectures.data');
+    Route::get('/dropdowns', [LectureController::class, 'getDropdowns'])->name('lectures.dropdowns');
+    Route::get('/teachers', [LectureController::class, 'getTeachers'])->name('lectures.teachers');
+    Route::get('/view/{id}', [LectureController::class, 'view'])->name('lectures.view');
+    Route::get('/download/{id}/{type}', [LectureController::class, 'download'])->name('lectures.download');
+
 });
+// attendence
+Route::group(['middleware' => ['auth']], function() {
+    // Attendance routes
+    Route::get('attendances', [AttendanceController::class, 'index'])->name('attendances.index');
+    Route::post('attendances/students', [AttendanceController::class, 'getStudents'])->name('attendances.students');
+    Route::get('attendances/dropdowns', [AttendanceController::class, 'getDropdowns'])->name('attendances.dropdowns');
+    Route::get('attendances/timetable', [AttendanceController::class, 'getTimetable'])->name('attendances.timetable');
+    Route::post('attendances/mark', [AttendanceController::class, 'markAttendance'])->name('attendances.mark');
+
+    Route::get('attendances/report', [AttendanceController::class, 'report'])->name('attendances.report');
+    Route::post('attendances/report/generate', [AttendanceController::class, 'generateReport'])->name('attendances.report.generate');
+    Route::post('attendances/report/pdf', [AttendanceController::class, 'generatePdf'])->name('attendances.report.pdf');
+});
+// routes/web.php
+Route::group(['middleware' => ['auth']], function() {
+    Route::prefix('time-table')->name('time-table.')->group(function() {
+        Route::get('/', [TimeTableController::class, 'index'])->name('index');
+        Route::get('/dropdowns', [TimeTableController::class, 'getDropdowns'])->name('dropdowns');
+        Route::get('/time-slot-templates', [TimeTableController::class, 'getTimeSlotTemplates'])->name('time-slot-templates');
+        Route::get('/calculate-slots', [TimeTableController::class, 'calculateSlots'])->name('calculate-slots');
+        Route::post('/check-availability', [TimeTableController::class, 'checkAvailability'])->name('check-availability');
+        Route::get('/load-timetable', [TimeTableController::class, 'loadTimetable'])->name('load-timetable');
+        Route::post('/', [TimeTableController::class, 'store'])->name('store');
+        
+        // Edit/Update/Delete routes
+        Route::get('/edit/{id}', [TimeTableController::class, 'edit'])->name('edit');
+        Route::put('/update/{id}', [TimeTableController::class, 'update'])->name('update');
+        Route::delete('/delete/{id}', [TimeTableController::class, 'destroy'])->name('destroy');
+
+         // Add these new routes for reporting
+        Route::get('/report', [TimeTableController::class, 'report'])->name('report');
+        Route::get('/generate-report', [TimeTableController::class, 'generateReport'])->name('generate-report');
+        Route::post('/export-report', [TimeTableController::class, 'exportReport'])->name('export-report');
+        // Route::post('time-table/export-report', [TimeTableController::class, 'export'])->name('export-report');
+
+    });
+    
+    Route::prefix('class-slots')->group(function() {
+        Route::get('/', [TimeTableController::class, 'slotindex'])->name('class-slots.index');
+        Route::get('/list', [TimeTableController::class, 'getClassSlots'])->name('class-slots.list');
+        Route::post('/', [TimeTableController::class, 'storeClassSlot'])->name('class-slots.store');
+        Route::get('/{id}', [TimeTableController::class, 'getSlotDetails'])->name('class-slots.show');
+        Route::put('/{id}', [TimeTableController::class, 'updateClassSlot'])->name('class-slots.update');
+        Route::delete('/{id}', [TimeTableController::class, 'deleteClassSlot'])->name('class-slots.destroy');
+    });
+});
+
+// routes/web.php
+Route::group(['middleware' => ['auth']], function() {
+    // Result routes
+    Route::get('results', [ResultUploadController::class, 'index'])->name('results.index');
+    Route::post('results/students', [ResultUploadController::class, 'getStudents'])->name('results.students');
+    Route::get('results/dropdowns', [ResultUploadController::class, 'getDropdowns'])->name('results.dropdowns');
+    Route::post('results/store', [ResultUploadController::class, 'store'])->name('results.store');
+    
+    // Result View Routes
+    Route::get('/results/view', [ResultUploadController::class, 'view'])->name('results.view');
+    Route::post('/results/view-data', [ResultUploadController::class, 'getViewData'])->name('results.view-data');
+    Route::get('/results/details', [ResultUploadController::class, 'getResultDetails'])->name('results.details');
+    Route::get('/results/generate-pdf', [ResultUploadController::class, 'generatePdf'])->name('results.generate-pdf');
+    Route::get('/results/generate-student-pdf', [ResultUploadController::class, 'generateStudentPdf'])->name('results.generate-student-pdf');
+});
+
+
+// Route::get('/EnrollCourse', function () {
+//     return view('enrollments.teacherCourseEnrollment.index');
+// });

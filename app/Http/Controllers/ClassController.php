@@ -6,37 +6,100 @@ use App\Models\Classes; // Using 'Classes' because 'Class' is a reserved word
 use App\Models\Session;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Carbon\Carbon;
 
 class ClassController extends Controller
 {
     public function index()
     {
-        $sessions = Session ::get();
-        return view('classes.index', compact('sessions'));
+        $user = Auth::user();
+        $today = Carbon::today();
+
+        // Get all sessions for the institute
+        $query = Session::query();
+        if (!$user->roles->pluck('name')->contains('Super Admin')) {
+            $query->where('institute_id', $user->institute_id);
+        }
+        $sessions = $query->get();
+
+        // Find the active session
+        $activeSession = $sessions->first(function($session) use ($today) {
+            $startDate = Carbon::parse($session->start_date);
+            $endDate = Carbon::parse($session->end_date);
+            
+            // Check if today falls between start and end date
+            $isWithinDateRange = $today->between($startDate, $endDate);
+            
+            if ($isWithinDateRange) {
+                // Check if there's another active session with earlier start date
+                $earlierActiveSession = Session::where('id', '!=', $session->id)
+                    ->where('institute_id', $session->institute_id)
+                    ->where('start_date', '<=', $today)
+                    ->where('end_date', '>=', $today)
+                    ->where('start_date', '<', $session->start_date)
+                    ->exists();
+                
+                return !$earlierActiveSession;
+            }
+            
+            return false;
+        });
+
+        return view('classes.index', compact('sessions', 'activeSession'));
     }
 
     public function getClasses()
     {
-        $classes = Classes::with('session')->select('classes.*');
+        $user = Auth::user();
+        $today = Carbon::today();
 
-        return datatables()->of($classes)
-            ->addColumn('status', function($class) {
-                $badge = $class->status === 'active' ? 'success' : 
-                         ($class->status === 'inactive' ? 'warning' : 'secondary');
-                $text = ucfirst($class->status);
+        // Start the query with join to sessions table
+        $query = Classes::with('session')
+            ->join('sessions', 'classes.session_id', '=', 'sessions.id')
+            ->select('classes.*');
+
+        // If user is not a Super Admin, filter by their institute
+        if (!$user->hasRole('Super Admin')) {
+            $query->where('sessions.institute_id', $user->institute_id);
+        }
+
+        return datatables()->of($query)
+            ->addColumn('status', function ($class) use ($today) {
+                // Get the session dates
+                $startDate = Carbon::parse($class->session->start_date);
+                $endDate = Carbon::parse($class->session->end_date);
+                
+                // Check if this class belongs to the active session
+                $isActive = $today->between($startDate, $endDate);
+                
+                if ($isActive) {
+                    // Check if there's another active session with earlier start date
+                    $earlierActiveSession = Session::where('id', '!=', $class->session_id)
+                        ->where('institute_id', $class->session->institute_id)
+                        ->where('start_date', '<=', $today)
+                        ->where('end_date', '>=', $today)
+                        ->where('start_date', '<', $class->session->start_date)
+                        ->exists();
+                    
+                    $isActive = !$earlierActiveSession;
+                }
+                
+                $badge = $isActive ? 'success' : 'secondary';
+                $text = $isActive ? 'Active' : 'Inactive';
+                
                 return '<span class="badge bg-'.$badge.'">'.$text.'</span>';
             })
-            ->addColumn('action', function($class) {
+            ->addColumn('action', function ($class) {
                 return '
-                    <div class="btn-group">
-                        <button class="btn btn-sm btn-primary edit-btn me-1" data-id="'.$class->id.'">
-                            <i class="fas fa-edit"></i> Edit
-                        </button>
-                        <button class="btn btn-sm btn-danger delete-btn" data-id="'.$class->id.'">
-                            <i class="fas fa-trash"></i> Delete
-                        </button>
-                    </div>
-                ';
+                <div class="btn-group">
+                    <button class="btn btn-sm btn-primary edit-btn me-1" data-id="' . $class->id . '">
+                        <i class="fas fa-edit"></i> Edit
+                    </button>
+                    <button class="btn btn-sm btn-danger delete-btn" data-id="' . $class->id . '">
+                        <i class="fas fa-trash"></i> Delete
+                    </button>
+                </div>
+            ';
             })
             ->rawColumns(['status', 'action'])
             ->make(true);
@@ -47,7 +110,6 @@ class ClassController extends Controller
         $request->validate([
             'name' => 'required|string|max:255',
             'session_id' => 'required|exists:sessions,id',
-            'status' => 'required|in:active,inactive,archived',
             'description' => 'nullable|string'
         ]);
 
@@ -70,7 +132,6 @@ class ClassController extends Controller
         $request->validate([
             'name' => 'required|string|max:255',
             'session_id' => 'required|exists:sessions,id',
-            'status' => 'required|in:active,inactive,archived',
             'description' => 'nullable|string'
         ]);
 

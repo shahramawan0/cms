@@ -13,6 +13,7 @@ class Classes extends Model
 
     protected $fillable = [
         'session_id',
+        'institute_id',
         'name',
         'status',
         'description',
@@ -25,4 +26,11 @@ class Classes extends Model
     {
         return $this->belongsTo(Session::class);
     }
+    // App\Models\Classes.php
+
+public function sections()
+{
+    return $this->hasMany(Section::class, 'class_id');
+}
+
 }

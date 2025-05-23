@@ -32,7 +32,9 @@
                                     <select name="session_id" id="session_id" class="form-control" required>
                                         <option value="">Select Session</option>
                                         @foreach($sessions as $session)
-                                            <option value="{{ $session->id }}">{{ $session->session_name }}</option>
+                                            <option value="{{ $session->id }}" {{ isset($activeSession) && $activeSession->id == $session->id ? 'selected' : '' }}>
+                                                {{ $session->session_name }}
+                                            </option>
                                         @endforeach
                                     </select>
                                     <div class="invalid-feedback" id="session_id_error"></div>
@@ -48,40 +50,28 @@
                             </div>
                             <div class="col-md-4">
                                 <div class="form-group">
-                                    <label for="status">Status <span class="text-danger">*</span></label>
-                                    <select name="status" id="status" class="form-control" required>
-                                        <option value="active">Active</option>
-                                        <option value="inactive">Inactive</option>
-                                        <option value="archived">Archived</option>
-                                    </select>
-                                    <div class="invalid-feedback" id="status_error"></div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row mt-3">
-                            <div class="col-md-12">
-                                <div class="form-group">
                                     <label for="description">Description</label>
                                     <textarea name="description" id="description" 
                                               class="form-control" rows="2"></textarea>
                                 </div>
                             </div>
                         </div>
+                       
                         <div class="row mt-3">
                             <div class="col-md-12">
-                                <button type="submit" id="submitBtn" class="btn btn-primary">
+                                <button type="submit" id="submitBtn" class="btn btn-primary btn-sm">
                                     <span id="submitBtnText">Submit</span>
                                     <span id="submitBtnLoader" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                                 </button>
-                                <button type="button" id="cancelBtn" class="btn btn-secondary">Cancel</button>
+                                <button type="button" id="cancelBtn" class="btn btn-secondary btn-sm">Cancel</button>
                             </div>
                         </div>
                     </form>
                 </div>
                 
                 <!-- Classes Table -->
-                <div class="card-body">
-                    <table id="classes-table" class="table table-bordered table-striped">
+                <div class="card-body" style="border-top:1px solid #000">
+                    <table id="classes-table" class="table  table-striped">
                         <thead>
                             <tr>
                                 <th>ID</th>
@@ -105,6 +95,19 @@
 @push('scripts')
 <script>
 $(document).ready(function() {
+    // Initialize Toast
+    const Toast = Swal.mixin({
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+        didOpen: (toast) => {
+            toast.addEventListener('mouseenter', Swal.stopTimer)
+            toast.addEventListener('mouseleave', Swal.resumeTimer)
+        }
+    });
+
     // Initialize DataTable
     var table = $('#classes-table').DataTable({
         processing: true,
@@ -172,13 +175,10 @@ $(document).ready(function() {
                 // Hide form
                 $('#classFormContainer').hide();
                 
-                // Show success message
-                Swal.fire({
+                // Show success toast
+                Toast.fire({
                     icon: 'success',
-                    title: 'Success',
-                    text: response.message,
-                    timer: 2000,
-                    showConfirmButton: false
+                    title: response.message
                 });
                 
                 // Reload table
@@ -193,10 +193,9 @@ $(document).ready(function() {
                         $('#'+field+'_error').text(errors[field][0]);
                     }
                 } else {
-                    Swal.fire({
+                    Toast.fire({
                         icon: 'error',
-                        title: 'Error',
-                        text: 'Something went wrong!'
+                        title: 'Something went wrong!'
                     });
                 }
             },
@@ -224,7 +223,6 @@ $(document).ready(function() {
                 $('#classId').val(response.id);
                 $('#name').val(response.name);
                 $('#session_id').val(response.session_id);
-                $('#status').val(response.status);
                 $('#description').val(response.description);
                 
                 // Show form
@@ -234,10 +232,9 @@ $(document).ready(function() {
                 }, 500);
             },
             error: function(xhr) {
-                Swal.fire({
+                Toast.fire({
                     icon: 'error',
-                    title: 'Error',
-                    text: 'Failed to load class data!'
+                    title: 'Failed to load class data!'
                 });
             },
             complete: function() {
@@ -271,19 +268,17 @@ $(document).ready(function() {
                         _token: "{{ csrf_token() }}"
                     },
                     success: function(response) {
-                        Swal.fire(
-                            'Deleted!',
-                            response.message,
-                            'success'
-                        );
+                        Toast.fire({
+                            icon: 'success',
+                            title: response.message
+                        });
                         table.ajax.reload(null, false);
                     },
                     error: function(xhr) {
-                        Swal.fire(
-                            'Error!',
-                            'Something went wrong while deleting.',
-                            'error'
-                        );
+                        Toast.fire({
+                            icon: 'error',
+                            title: 'Something went wrong while deleting.'
+                        });
                     },
                     complete: function() {
                         // Reset button text

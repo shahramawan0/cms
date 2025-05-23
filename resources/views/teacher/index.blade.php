@@ -27,9 +27,9 @@
                         <input type="hidden" id="teacherId" name="id">
                         
                         <!-- Institute Information Section -->
-                        <div class="row mb-3">
+                        <div class="row">
                             @if(auth()->user()->hasRole('Super Admin'))
-                            <div class="col-md-6">
+                            <div class="col-md-3">
                                 <div class="form-group">
                                     <label for="institute_id">Institute <span class="text-danger">*</span></label>
                                     <select name="institute_id" id="institute_id" class="form-control" required>
@@ -41,7 +41,7 @@
                                     <div class="invalid-feedback" id="institute_id_error"></div>
                                 </div>
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-md-3">
                                 <div class="form-group">
                                     <label for="admin_id">Assigned Admin <span class="text-danger">*</span></label>
                                     <select name="admin_id" id="admin_id" class="form-control" required>
@@ -54,14 +54,14 @@
                                 </div>
                             </div>
                             @else
-                            <div class="col-md-6">
+                            <div class="col-md-3">
                                 <div class="form-group">
                                     <label>Institute</label>
                                     <input type="text" class="form-control" value="{{ auth()->user()->institute->name }}" readonly>
                                     <input type="hidden" name="institute_id" value="{{ auth()->user()->institute_id }}">
                                 </div>
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-md-3">
                                 <div class="form-group">
                                     <label>Assigned Admin</label>
                                     <input type="text" class="form-control" value="{{ auth()->user()->name }}" readonly>
@@ -72,32 +72,29 @@
                         </div>
                         
                         <!-- Personal Information Section -->
-                        <div class="row mb-3">
-                            <div class="col-md-4">
+                        <div class="row">
+                            <div class="col-md-3">
                                 <div class="form-group">
                                     <label for="name">Full Name <span class="text-danger">*</span></label>
                                     <input type="text" name="name" id="name" class="form-control" required>
                                     <div class="invalid-feedback" id="name_error"></div>
                                 </div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <div class="form-group">
                                     <label for="email">Email <span class="text-danger">*</span></label>
                                     <input type="email" name="email" id="email" class="form-control" required>
                                     <div class="invalid-feedback" id="email_error"></div>
                                 </div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <div class="form-group">
                                     <label for="phone">Phone Number</label>
                                     <input type="text" name="phone" id="phone" class="form-control">
                                     <div class="invalid-feedback" id="phone_error"></div>
                                 </div>
                             </div>
-                        </div>
-                        
-                        <div class="row mb-3">
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <div class="form-group">
                                     <label for="gender">Gender <span class="text-danger">*</span></label>
                                     <select name="gender" id="gender" class="form-control" required>
@@ -109,14 +106,71 @@
                                     <div class="invalid-feedback" id="gender_error"></div>
                                 </div>
                             </div>
-                            <div class="col-md-4">
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-3">
                                 <div class="form-group">
                                     <label for="dob">Date of Birth <span class="text-danger">*</span></label>
                                     <input type="date" name="dob" id="dob" class="form-control" required>
                                     <div class="invalid-feedback" id="dob_error"></div>
                                 </div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label for="designation">Designation</label>
+                                    <input type="text" name="designation" id="designation" class="form-control">
+                                    <div class="invalid-feedback" id="designation_error"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label for="qualification">Qualification <span class="text-danger">*</span></label>
+                                    <input type="text" name="qualification" id="qualification" class="form-control" required>
+                                    <div class="invalid-feedback" id="qualification_error"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label for="experience_years">Experience (Years) <span class="text-danger">*</span></label>
+                                    <input type="number" name="experience_years" id="experience_years" class="form-control" required min="0">
+                                    <div class="invalid-feedback" id="experience_years_error"></div>
+                                </div>
+                            </div>
+                            
+                        </div>
+                        
+                        <div class="row mb-2">
+                            <div class="col-md-12">
+                                <div class="form-group">
+                                    <label for="address">Address</label>
+                                    <textarea name="address" id="address" class="form-control" rows="2"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label for="specialization">Specialization <span class="text-danger">*</span></label>
+                                    <input type="text" name="specialization" id="specialization" class="form-control" required>
+                                    <div class="invalid-feedback" id="specialization_error"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label for="joining_date">Joining Date <span class="text-danger">*</span></label>
+                                    <input type="date" name="joining_date" id="joining_date" class="form-control" required>
+                                    <div class="invalid-feedback" id="joining_date_error"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label for="salary">Salary <span class="text-danger">*</span></label>
+                                    <input type="number" step="0.01" name="salary" id="salary" class="form-control" required min="0">
+                                    <div class="invalid-feedback" id="salary_error"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
                                 <div class="form-group">
                                     <label for="profile_image">Profile Image</label>
                                     <input type="file" name="profile_image" id="profile_image" class="form-control">
@@ -126,87 +180,12 @@
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                        
-                        <div class="row mb-3">
-                            <div class="col-md-12">
-                                <div class="form-group">
-                                    <label for="address">Address</label>
-                                    <textarea name="address" id="address" class="form-control" rows="2"></textarea>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Professional Information Section -->
-                        <div class="row mb-3">
-                            <div class="col-md-4">
-                                <div class="form-group">
-                                    <label for="designation">Designation</label>
-                                    <input type="text" name="designation" id="designation" class="form-control">
-                                    <div class="invalid-feedback" id="designation_error"></div>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="form-group">
-                                    <label for="qualification">Qualification <span class="text-danger">*</span></label>
-                                    <input type="text" name="qualification" id="qualification" class="form-control" required>
-                                    <div class="invalid-feedback" id="qualification_error"></div>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="form-group">
-                                    <label for="experience_years">Experience (Years) <span class="text-danger">*</span></label>
-                                    <input type="number" name="experience_years" id="experience_years" class="form-control" required min="0">
-                                    <div class="invalid-feedback" id="experience_years_error"></div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="row mb-3">
-                            <div class="col-md-4">
-                                <div class="form-group">
-                                    <label for="specialization">Specialization <span class="text-danger">*</span></label>
-                                    <input type="text" name="specialization" id="specialization" class="form-control" required>
-                                    <div class="invalid-feedback" id="specialization_error"></div>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="form-group">
-                                    <label for="joining_date">Joining Date <span class="text-danger">*</span></label>
-                                    <input type="date" name="joining_date" id="joining_date" class="form-control" required>
-                                    <div class="invalid-feedback" id="joining_date_error"></div>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="form-group">
-                                    <label for="salary">Salary <span class="text-danger">*</span></label>
-                                    <input type="number" step="0.01" name="salary" id="salary" class="form-control" required min="0">
-                                    <div class="invalid-feedback" id="salary_error"></div>
-                                </div>
-                            </div>
+
                         </div>
                         
                         <!-- Bank Information Section -->
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="account_title">Bank Account Title</label>
-                                    <input type="text" name="account_title" id="account_title" class="form-control">
-                                    <div class="invalid-feedback" id="account_title_error"></div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="account_number">Bank Account Number</label>
-                                    <input type="text" name="account_number" id="account_number" class="form-control">
-                                    <div class="invalid-feedback" id="account_number_error"></div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Password Section -->
-                        <div class="row mb-3">
-                            <div class="col-md-6">
+                        <div class="row mb-2">
+                            <div class="col-md-3">
                                 <div class="form-group">
                                     <label for="password">Password <span class="text-danger" id="passwordRequired">*</span></label>
                                     <div class="input-group">
@@ -218,7 +197,7 @@
                                     <div class="invalid-feedback" id="password_error"></div>
                                 </div>
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-md-3">
                                 <div class="form-group">
                                     <label for="password_confirmation">Confirm Password <span class="text-danger" id="confirmPasswordRequired">*</span></label>
                                     <div class="input-group">
@@ -229,23 +208,36 @@
                                     </div>
                                 </div>
                             </div>
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label for="account_title">Bank Account Title</label>
+                                    <input type="text" name="account_title" id="account_title" class="form-control">
+                                    <div class="invalid-feedback" id="account_title_error"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label for="account_number">Bank Account Number</label>
+                                    <input type="text" name="account_number" id="account_number" class="form-control">
+                                    <div class="invalid-feedback" id="account_number_error"></div>
+                                </div>
+                            </div>
                         </div>
-                        
                         <div class="row">
                             <div class="col-md-12">
-                                <button type="submit" id="submitBtn" class="btn btn-primary">
+                                <button type="submit" id="submitBtn" class="btn btn-primary btn-sm">
                                     <span id="submitBtnText">Submit</span>
                                     <span id="submitBtnLoader" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                                 </button>
-                                <button type="button" id="cancelBtn" class="btn btn-secondary">Cancel</button>
+                                <button type="button" id="cancelBtn" class="btn btn-secondary btn-sm">Cancel</button>
                             </div>
                         </div>
                     </form>
                 </div>
                 
                 <!-- Teachers Table -->
-                <div class="card-body">
-                    <table id="teachers-table" class="table table-bordered table-striped">
+                <div class="card-body" style="border-top:1px solid #000">
+                    <table id="teachers-table" class="table  table-striped">
                         <thead>
                             <tr>
                                 <th>Image</th>

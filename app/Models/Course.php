@@ -13,15 +13,14 @@ class Course extends Model
         'course_name',
         'course_code',
         'description',
-        'book_name',
+        'total_marks',
+        'credit_hours',
         'created_by',
         'updated_by',
         'institute_id',
-        'level',
-        'language',
+       
         'duration_months',
-        'start_date',
-        'end_date',
+       
         'is_active',
     ];
 
@@ -33,6 +32,11 @@ class Course extends Model
     public function users()
     {
         return $this->belongsToMany(User::class, 'course_student', 'course_id', 'student_id');
+    }
+    // Add this relationship
+    public function assessments()
+    {
+        return $this->hasMany(CourseAssessment::class);
     }
      
 }
