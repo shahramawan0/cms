@@ -89,6 +89,12 @@ class ClassController extends Controller
                 
                 return '<span class="badge bg-'.$badge.'">'.$text.'</span>';
             })
+            ->addColumn('name_with_background_color', function ($class) {
+                return '<div class="d-flex align-items-center">
+                    <div class="color-box me-2" style="width: 20px; height: 20px; border-radius: 4px; background-color: '.$class->background_color.'"></div>
+                    '.$class->name.'
+                </div>';
+            })
             ->addColumn('action', function ($class) {
                 return '
                 <div class="btn-group">
@@ -101,7 +107,7 @@ class ClassController extends Controller
                 </div>
             ';
             })
-            ->rawColumns(['status', 'action'])
+            ->rawColumns(['status', 'name_with_background_color', 'action'])
             ->make(true);
     }
 
@@ -110,7 +116,8 @@ class ClassController extends Controller
         $request->validate([
             'name' => 'required|string|max:255',
             'session_id' => 'required|exists:sessions,id',
-            'description' => 'nullable|string'
+            'description' => 'nullable|string',
+            'background_color' => 'required|string|regex:/^#[a-fA-F0-9]{6}$/' // Validate hex color
         ]);
 
         $class = Classes::create($request->all());
@@ -132,7 +139,8 @@ class ClassController extends Controller
         $request->validate([
             'name' => 'required|string|max:255',
             'session_id' => 'required|exists:sessions,id',
-            'description' => 'nullable|string'
+            'description' => 'nullable|string',
+            'background_color' => 'required|string|regex:/^#[a-fA-F0-9]{6}$/' // Validate hex color
         ]);
 
         $class = Classes::findOrFail($id);

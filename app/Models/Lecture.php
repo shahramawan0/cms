@@ -19,6 +19,8 @@ class Lecture extends Model
         'section_id',
         'course_id',
         'lecture_date',
+        'slot_date',
+        'slot_time',
         'status',
         'video_path',
         'pdf_path',
@@ -26,7 +28,7 @@ class Lecture extends Model
         'updated_by'
     ];
 
-    protected $dates = ['lecture_date'];
+    protected $dates = ['lecture_date', 'slot_date'];
 
     public function institute()
     {

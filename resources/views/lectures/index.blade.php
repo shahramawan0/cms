@@ -1,287 +1,204 @@
 @extends('layouts.app')
 
 @section('content')
+<!-- Add CSRF Token meta tag -->
+<meta name="csrf-token" content="{{ csrf_token() }}">
+
 <div class="container-fluid">
     <div class="row">
         <div class="col-md-12">
-            <div class="card">
+            <div class="card shadow-sm">
                 <div class="card-header bg-info text-white">
                     <div class="d-flex justify-content-between align-items-center w-100">
                         <div>
                             <h3 class="card-title mb-0 text-white">
-                                <i class="fas fa-chalkboard-teacher text-white"></i> Lecture Management
+                                <i class="fas fa-chalkboard-teacher"></i> Lecture Management
                             </h3>
                         </div>
-                        @can('Lecture.Add')
-                        <div>
-                            <button id="addLectureBtn" class="btn btn-secondary btn-sm text-white">
-                                <i class="fas fa-plus"></i> Add Lecture
-                            </button>
-                        </div>
-                    @endcan
-                    
                     </div>
                 </div>
                 
-                <!-- Lecture Form (Initially Hidden) -->
-                <div class="card-body" id="lectureFormContainer" style="display: none;">
-                    <form id="lectureForm" enctype="multipart/form-data">
-                        @csrf
-                        <input type="hidden" name="id" id="lecture_id">
-                        <input type="hidden" name="institute_id" id="institute_id" value="{{ auth()->user()->institute_id ?? '' }}">
-                       
-                        <div class="row">
-                            @if(auth()->user()->hasRole('Super Admin'))
-                            <div class="col-md-4">
-                                <div class="form-group">
-                                    <label for="institute_id">Institute <span class="text-danger">*</span></label>
-                                    <select name="institute_id" id="institute_idd" class="form-control" required>
-                                        <option value="">Select Institute</option>
-                                        @foreach($institutes as $institute)
-                                            <option value="{{ $institute->id }}">{{ $institute->name }}</option>
-                                        @endforeach
-                                    </select>
-                                    <div class="invalid-feedback" id="institute_id_error"></div>
-                                </div>
-                            </div>
-                            @endif
+                <div class="card-body p-0">
+                    <div class="row g-0">
+                        <!-- Course Selection Sidebar -->
+                        <div class="col-md-4 border-end">
+                            <div class="p-3">
+                                <form id="lectureForm">
+                                    @csrf
+                                    <input type="hidden" name="institute_id" id="institute_id" value="{{ auth()->user()->institute_id ?? '' }}">
+                                
+                                    <div class="mb-4">
+                                        @if(auth()->user()->hasRole('Super Admin'))
+                                        <div class="form-group mb-3">
+                                            <label for="institute_select" class="form-label fw-bold">
+                                                <i class="fas fa-university"></i> Institute
+                                            </label>
+                                            <select name="institute_select" id="institute_select" class="form-control form-select" required>
+                                                <option value="">Select Institute</option>
+                                                @foreach($institutes as $institute)
+                                                    <option value="{{ $institute->id }}">{{ $institute->name }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        @endif
                             
-                            <div class="col-md-4">
-                                <div class="form-group">
-                                    <label for="session_id">Academic Session <span class="text-danger">*</span></label>
-                                    <select name="session_id" id="session_id" class="form-control" required>
-                                        <option value="">Select Session</option>
-                                    </select>
-                                    <div class="invalid-feedback" id="session_id_error"></div>
-                                </div>
-                            </div>
+                                        <div class="form-group mb-3">
+                                            <label for="session_id" class="form-label fw-bold">
+                                                <i class="fas fa-calendar-alt"></i> Academic Session
+                                            </label>
+                                            <select name="session_id" id="session_id" class="form-control form-select" required>
+                                                <option value="">Select Session</option>
+                                            </select>
+                                        </div>
+                                    </div>
                         
-                            <div class="col-md-4">
-                                <div class="form-group">
-                                    <label for="class_id">Class <span class="text-danger">*</span></label>
-                                    <select name="class_id" id="class_id" class="form-control" required>
-                                        <option value="">Select Class</option>
-                                    </select>
-                                    <div class="invalid-feedback" id="class_id_error"></div>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="form-group">
-                                    <label for="section_id">Section <span class="text-danger">*</span></label>
-                                    <select name="section_id" id="section_id" class="form-control" required>
-                                        <option value="">Select Section</option>
-                                    </select>
-                                    <div class="invalid-feedback" id="section_id_error"></div>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="form-group">
-                                    <label for="course_id">Course <span class="text-danger">*</span></label>
-                                    <select name="course_id" id="course_id" class="form-control" required>
-                                        <option value="">Select Course</option>
-                                    </select>
-                                    <div class="invalid-feedback" id="course_id_error"></div>
-                                </div>
-                            </div>
-                            @if(auth()->user()->hasRole('Super Admin') || auth()->user()->hasRole('Admin'))
-                            <div class="col-md-4">
-                                <div class="form-group">
-                                    <label for="teacher_id">Teacher <span class="text-danger">*</span></label>
-                                    <select name="teacher_id" id="teacher_id" class="form-control" required>
-                                        <option value="">Select Teacher</option>
-                                    </select>
-                                    <div class="invalid-feedback" id="teacher_id_error"></div>
-                                </div>
-                            </div>
-                            @else
-                                <input type="hidden" name="teacher_id" id="teacher_id" value="{{ auth()->user()->id }}">
-                            @endif
-                        </div>
-                        
-                        <div class="row mt-3">
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="title">Lecture Title <span class="text-danger">*</span></label>
-                                    <input type="text" name="title" id="title" class="form-control" required>
-                                    <div class="invalid-feedback" id="title_error"></div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="lecture_date">Lecture Date <span class="text-danger">*</span></label>
-                                    <input type="date" name="lecture_date" id="lecture_date" class="form-control" required>
-                                    <div class="invalid-feedback" id="lecture_date_error"></div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row mt-3">
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="video">Video File (MP4)</label>
-                                    <input type="file" name="video" id="video" class="form-control" accept="video/mp4">
-                                    <small class="text-muted">Max size: 50MB</small>
-                                    <div class="invalid-feedback" id="video_error"></div>
-                                    <div id="video_preview" class="mt-2"></div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="pdf">PDF File</label>
-                                    <input type="file" name="pdf" id="pdf" class="form-control" accept=".pdf">
-                                    <small class="text-muted">Max size: 10MB</small>
-                                    <div class="invalid-feedback" id="pdf_error"></div>
-                                    <div id="pdf_preview" class="mt-2"></div>
-                                </div>
+                                    <h5 class="mb-3"><i class="fas fa-book"></i> Available Courses</h5>
+                                    <div id="courseListContainer">
+                                        <div class="list-group" id="courseListGroup">
+                                            <!-- Course list items will be loaded here -->
+                                            <div class="text-center py-5" id="courseLoading">
+                                                <div class="spinner-border text-primary" role="status">
+                                                    <span class="visually-hidden">Loading...</span>
+                                                </div>
+                                                <p class="mt-2">Loading courses...</p>
+                                            </div>
+                                            <div class="text-center py-5" id="noCourseFound" style="display: none;">
+                                                <div class="alert alert-info">
+                                                    <i class="fas fa-info-circle"></i> No courses found.
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </form>
                             </div>
                         </div>
                         
-                        <div class="row mt-3">
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="status">Status <span class="text-danger">*</span></label>
-                                    <select name="status" id="status" class="form-control" required>
-                                        <option value="active">Active</option>
-                                        <option value="inactive">InActive</option>
-                                    </select>
-                                    <div class="invalid-feedback" id="status_error"></div>
+                        <!-- Time Slots Area -->
+                        <div class="col-md-8" id="lectureContentContainer" style="display: none;">
+                            <div class="p-3">
+                                <div class="d-flex justify-content-between align-items-center mb-4">
+                                    <h5 id="selectedCourseInfo" class="mb-0"></h5>
                                 </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="description">Description</label>
-                                    <textarea name="description" id="description" class="form-control" rows="3"></textarea>
-                                    <div class="invalid-feedback" id="description_error"></div>
+
+                                <div class="card">
+                                    <div class="card-header">
+                                        <div class="d-flex justify-content-between align-items-center w-100">
+                                            <h6 class="mb-0">
+                                                <i class="fas fa-clock me-1"></i>Uploaded Lectures
+                                            </h6>
+                                            <div class="btn-group">
+                                                <button type="button" class="btn btn-sm btn-outline-primary" id="todayBtn">Today</button>
+                                                <button type="button" class="btn btn-sm btn-outline-primary" id="weekBtn">This Week</button>
+                                                <button type="button" class="btn btn-sm btn-outline-primary" id="allBtn">All</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="card-body p-0">
+                                        <div class="table-responsive">
+                                            <table class="table table-hover mb-0">
+                                                <thead class="">
+                                                    <tr>
+                                                        <th>Date</th>
+                                                        <th>Time</th>
+                                                        <th>Week</th>
+                                                        <th class="text-center">Status</th>
+                                                        <th class="text-center">Action</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="timeSlotsTableBody">
+                                                    <!-- Time slots will be loaded here -->
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                       
-                        <div class="row mt-3">
-                            <div class="col-md-12">
-                                <button type="submit" id="submitBtn" class="btn btn-primary btn-sm">
-                                    <span id="submitBtnText">Submit</span>
-                                    <span id="submitBtnLoader" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-                                </button>
-                                <button type="button" id="cancelBtn" class="btn btn-secondary btn-sm">Cancel</button>
-                            </div>
-                        </div>
-                    </form>
-                </div>
-
-
-                <!-- Filter Section -->
-                <div class="card-body border-bottom">
-                    <form id="filterForm">
-                        <div class="row">
-                            @if(auth()->user()->hasRole('Super Admin'))
-                            <div class="col-md-3">
-                                <div class="form-group">
-                                    <label for="filter_institute">Institute</label>
-                                    <select name="institute_id" id="filter_institute" class="form-control">
-                                        <option value="">All Institutes</option>
-                                        @foreach($institutes as $institute)
-                                            <option value="{{ $institute->id }}">{{ $institute->name }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                            </div>
-                            @endif
-                            <div class="col-md-3">
-                                <div class="form-group">
-                                    <label for="filter_session">Session</label>
-                                    <select name="session_id" id="filter_session" class="form-control">
-                                        <option value="">All Sessions</option>
-                                              
-                                       
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="form-group">
-                                    <label for="filter_class">Class</label>
-                                    <select name="class_id" id="filter_class" class="form-control">
-                                        <option value="">All Classes</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="form-group">
-                                    <label for="filter_section">Section</label>
-                                    <select name="section_id" id="filter_section" class="form-control">
-                                        <option value="">All Sections</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="form-group">
-                                    <label for="filter_course">Course</label>
-                                    <select name="course_id" id="filter_course" class="form-control">
-                                        <option value="">All Courses</option>
-                                    </select>
-                                </div>
-                            </div>
-                            @if(auth()->user()->hasRole('Admin') || auth()->user()->hasrole('Super Admin') || auth()->user()->hasRole('Student'))
-                            <div class="col-md-3">
-                                <div class="form-group">
-                                    <label for="filter_teacher">Teacher</label>
-                                    <select name="teacher_id" id="filter_teacher" class="form-control">
-                                        <option value="">All Teachers</option>
-                                    </select>
-                                </div>
-                            </div>
-                            @endif
-                            <!-- Lecture Date Filter -->
-                            <div class="col-md-3">
-                                <div class="form-group">
-                                    <label for="filter_lecture_date">Lecture Date</label>
-                                    <input type="date" name="lecture_date" id="filter_lecture_date" class="form-control">
-                                </div>
-                            </div>
-
-                            <div class="col-md-3 d-flex align-items-end my-3">
-                                <div class="form-group w-100">
-                                    <button type="button" id="applyFilter" class="btn btn-primary btn-sm w-100">
-                                        <i class="fas fa-filter"></i> Apply Filter
-                                    </button>
-                                </div>
-                            </div>
-                            
-                            <div class="col-md-3 d-flex align-items-end my-3">
-                                <div class="form-group w-100">
-                                    <button type="button" id="resetFilter" class="btn btn-secondary btn-sm w-100">
-                                        <i class="fas fa-redo"></i> Reset
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </form>
-                </div>
-                
-                <!-- Lectures Table -->
-                <div class="card-body">
-                    <div style="overflow-x:auto;">
-                        <table id="lectures-table" class="table table-bordered table-striped">
-                            <thead>
-                                <tr>
-                                    <th>Title</th>
-                                    @if(auth()->user()->hasRole('Super Admin'))
-                                    <th>Institute</th>
-                                    @endif
-                                    <th>Session</th>
-                                    <th>Class</th>
-                                    <th>Section</th>
-                                    <th>Course</th>
-                                    <th>Teacher</th>
-
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <!-- Data loaded via AJAX -->
-                            </tbody>
-                        </table>
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Modal -->
+<div class="modal fade" id="uploadModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-upload"></i> Upload Lecture
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="lectureUploadForm" enctype="multipart/form-data">
+                @csrf
+                <input type="hidden" name="_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="institute_id" id="modalInstituteId">
+                <input type="hidden" name="session_id" id="modalSessionId">
+                <input type="hidden" name="class_id" id="modalClassId">
+                <input type="hidden" name="section_id" id="modalSectionId">
+                <input type="hidden" name="course_id" id="modalCourseId">
+                <input type="hidden" name="teacher_id" id="modalTeacherId">
+                <input type="hidden" name="slot_date" id="modalSlotDate">
+                <input type="hidden" name="slot_time" id="modalSlotTime">
+                <input type="hidden" name="status" value="active">
+                
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="mb-3">
+                                <label class="form-label required">Title</label>
+                                <input type="text" class="form-control" name="title" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" name="description" rows="3"></textarea>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Video Upload</label>
+                                <div id="videoPreview"></div>
+                                <div class="input-group" id="videoUploadGroup">
+                                    <input type="file" class="form-control" name="video_file" accept="video/*">
+                                    <button type="button" class="btn btn-outline-danger" id="removeVideo" style="display: none;">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                                <small class="text-muted">Supported formats: MP4, WebM (Max: 500MB)</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label required">Document Upload</label>
+                                <div id="pdfPreview"></div>
+                                <div class="input-group" id="fileUploadGroup">
+                                    <input type="file" class="form-control" name="lecture_file" required>
+                                    <button type="button" class="btn btn-outline-danger" id="removeFile" style="display: none;">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                                <small class="text-muted">Supported formats: PDF, DOC, etc. (Max: 10MB)</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-upload"></i> Upload Lecture
+                        <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -289,870 +206,676 @@
 
 @push('styles')
 <style>
-    .video-thumbnail {
-        width: 120px;
-        height: 80px;
-        object-fit: cover;
-        cursor: pointer;
+/* Custom styles for enhanced UI */
+.list-group-item {
+    transition: all 0.2s ease;
+    border-left: 3px solid transparent;
+    margin-bottom: 10px;
+    border-radius: 5px;
+    position: relative;
+    overflow: hidden;
+}
+
+.list-group-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.03);
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+}
+
+.list-group-item:hover::before {
+    transform: translateX(0);
+}
+
+.list-group-item:hover {
+    border-left-color: var(--bs-primary);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Dynamic class colors */
+.class-card-1 { border-left-color: #4e73df; }
+.class-card-2 { border-left-color: #1cc88a; }
+.class-card-3 { border-left-color: #f6c23e; }
+.class-card-4 { border-left-color: #e74a3b; }
+.class-card-5 { border-left-color: #36b9cc; }
+.class-card-6 { border-left-color: #6f42c1; }
+.class-card-7 { border-left-color: #fd7e14; }
+.class-card-8 { border-left-color: #20c9a6; }
+.class-card-9 { border-left-color: #858796; }
+.class-card-10 { border-left-color: #5a5c69; }
+
+.class-card-1:hover { background-color: rgba(78, 115, 223, 0.05); }
+.class-card-2:hover { background-color: rgba(28, 200, 138, 0.05); }
+.class-card-3:hover { background-color: rgba(246, 194, 62, 0.05); }
+.class-card-4:hover { background-color: rgba(231, 74, 59, 0.05); }
+.class-card-5:hover { background-color: rgba(54, 185, 204, 0.05); }
+.class-card-6:hover { background-color: rgba(111, 66, 193, 0.05); }
+.class-card-7:hover { background-color: rgba(253, 126, 20, 0.05); }
+.class-card-8:hover { background-color: rgba(32, 201, 166, 0.05); }
+.class-card-9:hover { background-color: rgba(133, 135, 150, 0.05); }
+.class-card-10:hover { background-color: rgba(90, 92, 105, 0.05); }
+
+.course-card {
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.course-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.course-card.active {
+    border-color: var(--bs-primary);
+    background-color: #f8f9fa;
+}
+
+#courseListGroup {
+    max-height: calc(100vh - 300px);
+    overflow-y: auto;
+}
+
+.time-slot-item {
+    padding: 10px;
+    border: 1px solid #dee2e6;
+    border-radius: 5px;
+    margin-bottom: 10px;
+    transition: all 0.2s ease;
+}
+
+.time-slot-item:hover {
+    background-color: #f8f9fa;
+}
+
+.time-slot-item.available {
+    border-left: 3px solid var(--bs-success);
+}
+
+.time-slot-item.occupied {
+    border-left: 3px solid var(--bs-danger);
+}
+
+@media (max-width: 767.98px) {
+    .border-end {
+        border-right: none !important;
+        border-bottom: 1px solid #dee2e6;
     }
-    .pdf-icon {
-        font-size: 3rem;
-        color: #d32f2f;
+    #courseListGroup {
+        max-height: 300px;
     }
-    .file-info {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }
-    .file-info small {
-        display: block;
-    }
+}
+
+/* Action buttons styling */
+.action-buttons {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+}
+
+.action-buttons .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+    transition: all 0.2s ease;
+}
+
+.action-buttons .btn:hover {
+    transform: translateY(-1px);
+}
+
+/* New styles */
+.form-label.required::after {
+    content: "*";
+    color: red;
+    margin-left: 4px;
+}
+
+.table > :not(caption) > * > * {
+    padding: 1rem 1rem;
+}
+
+.badge {
+    font-size: 85%;
+    padding: 0.5em 0.8em;
+}
+
+.btn-close-white {
+    filter: invert(1) grayscale(100%) brightness(200%);
+}
 </style>
 @endpush
 
 @push('scripts')
 <script>
-    $(document).ready(function() {
-        $('.select2').select2({
-            width: '100%',
-            allowClear: true
-        });
-    });
-</script>
-<script>
-$(document).ready(function() {
-   // Initialize DataTable
-var table = $('#lectures-table').DataTable({
-    processing: true,
-    serverSide: true,
-    ajax: {
-        url: "{{ route('lectures.data') }}",
-        data: function(d) {
-            // Add filter parameters to the request
-            @if(auth()->user()->hasRole('Super Admin'))
-            d.institute_id = $('#filter_institute').val();
-            @endif
-            
-            d.session_id = $('#filter_session').val();
-            
-            @if(auth()->user()->hasRole('Admin') || auth()->user()->hasRole('Teacher'))
-            d.class_id = $('#filter_class').val();
-            d.section_id = $('#filter_section').val();
-            @endif
-            
-            @if(auth()->user()->hasRole('Admin'))
-            d.teacher_id = $('#filter_teacher').val();
-            @endif
-            
-            d.course_id = $('#filter_course').val();
-            d.status = $('#filter_status').val();
-            d.lecture_date = $('#filter_lecture_date').val();
+    // Global function to edit lecture
+    function editLecture(lectureId) {
+        console.log('Edit lecture called with ID:', lectureId); // Debug log
+        
+        if (!lectureId || lectureId === 'undefined') {
+            Toast.fire({
+                icon: 'error',
+                title: 'Invalid lecture ID'
+            });
+            return;
         }
-    },
-    columns: [
-        { data: 'title', name: 'title' },
-        @if(auth()->user()->hasRole('Super Admin'))
-        { data: 'institute', name: 'institute' },
-        @endif
-        { data: 'session', name: 'session' },
-        { data: 'class', name: 'class' },
-        { data: 'section', name: 'section' },
-        { data: 'course', name: 'course' },
-        { data: 'teacher', name: 'teacher' },
-        { data: 'lecture_date', name: 'lecture_date' }, // Add this new column
-        { data: 'action', name: 'action', orderable: false, searchable: false }
-    ],
-    responsive: true,
-    autoWidth: false,
-    language: {
-        paginate: {
-            previous: '<i class="fas fa-angle-left"></i>',
-            next: '<i class="fas fa-angle-right"></i>'
-        }
-    }
-});
 
-    
-    // Load filter dropdowns based on user role
-    function loadFilterDropdowns() {
-        @if(auth()->user()->hasRole('Super Admin'))
-        // For Super Admin - load sessions when institute is selected
-        $('#filter_institute').change(function() {
-            var instituteId = $(this).val();
-            if (instituteId) {
-                loadFilterSessions(instituteId);
-                $('#filter_class, #filter_section, #filter_course, #filter_teacher').empty().append('<option value="">All</option>');
-            } else {
-                $('#filter_session, #filter_class, #filter_section, #filter_course, #filter_teacher').empty().append('<option value="">All</option>');
+        // Show loading state
+        Swal.fire({
+            title: 'Loading...',
+            text: 'Please wait while we fetch the lecture details',
+            allowOutsideClick: false,
+            showConfirmButton: false,
+            willOpen: () => {
+                Swal.showLoading();
             }
         });
-        @endif
-        
-        @if(!auth()->user()->hasRole('Super Admin'))
-    loadFilterSessions("{{ auth()->user()->institute_id }}");
-@endif
 
+        // Reset form and clear previews
+        $('#lectureUploadForm')[0].reset();
+        $('#videoPreview').empty();
+        $('#pdfPreview').empty();
         
-        // When session changes, load classes
-        $('#filter_session').change(function() {
-            var sessionId = $(this).val();
-            var instituteId = @if(auth()->user()->hasRole('Super Admin')) $('#filter_institute').val() @else "{{ auth()->user()->institute_id }}" @endif;
-            
-            if (sessionId && instituteId) {
-                loadFilterClasses(instituteId, sessionId);
-                $('#filter_section, #filter_course, #filter_teacher').empty().append('<option value="">All</option>');
-            } else {
-                $('#filter_class, #filter_section, #filter_course, #filter_teacher').empty().append('<option value="">All</option>');
-            }
-        });
-        
-        // When class changes, load sections
-        $('#filter_class').change(function() {
-            var classId = $(this).val();
-            var instituteId = @if(auth()->user()->hasRole('Super Admin')) $('#filter_institute').val() @else "{{ auth()->user()->institute_id }}" @endif;
-            var sessionId = $('#filter_session').val();
-            
-            if (classId && instituteId && sessionId) {
-                loadFilterSections(instituteId, sessionId, classId);
-                $('#filter_course, #filter_teacher').empty().append('<option value="">All</option>');
-            } else {
-                $('#filter_section, #filter_course, #filter_teacher').empty().append('<option value="">All</option>');
-            }
-        });
-        
-        // When section changes, load courses
-        $('#filter_section').change(function() {
-            var sectionId = $(this).val();
-            var instituteId = @if(auth()->user()->hasRole('Super Admin')) $('#filter_institute').val() @else "{{ auth()->user()->institute_id }}" @endif;
-            var sessionId = $('#filter_session').val();
-            var classId = $('#filter_class').val();
-            
-            if (sectionId && instituteId && sessionId && classId) {
-                loadFilterCourses(instituteId, sessionId, classId, sectionId);
-                $('#filter_teacher').empty().append('<option value="">All</option>');
-            } else {
-                $('#filter_course, #filter_teacher').empty().append('<option value="">All</option>');
-            }
-        });
-        
-        // When course changes, load teachers (only for Admin)
-        
-        $('#filter_course').change(function() {
-            var courseId = $(this).val();
-            var instituteId = @if(auth()->user()->hasRole('Super Admin')) $('#filter_institute').val() @else "{{ auth()->user()->institute_id }}" @endif;
-            var sessionId = $('#filter_session').val();
-            var classId = $('#filter_class').val();
-            var sectionId = $('#filter_section').val();
-            
-            if (courseId && instituteId && sessionId && classId && sectionId) {
-                loadFilterTeachers(instituteId, sessionId, classId, sectionId, courseId);
-            } else {
-                $('#filter_teacher').empty().append('<option value="">All</option>');
-            }
-        });
-        
-        
-    }
-    
-    // Function to load sessions for filter
-    function loadFilterSessions(instituteId) {
         $.ajax({
-            url: "{{ route('lectures.dropdowns') }}",
-            type: "GET",
-            data: { institute_id: instituteId },
-            success: function(data) {
-                $('#filter_session').empty().append('<option value="">All Sessions</option>');
-                if(data.sessions && data.sessions.length > 0) {
-                    $.each(data.sessions, function(key, value) {
-                        $('#filter_session').append(`<option value="${value.id}">${value.session_name}</option>`);
-                    });
+            url: `/lectures/edit/${lectureId}`,
+            type: 'GET',
+            success: function(response) {
+                Swal.close();
+                
+                if (response.success) {
+                    const lecture = response.lecture;
                     
-                    // For Student - select the latest session by default
-                    @if(auth()->user()->hasRole('Student'))
-                    if(data.sessions.length > 0) {
-                        $('#filter_session').val(data.sessions[0].id).trigger('change');
+                    // Add lecture ID to form
+                    $('#lectureUploadForm').append(`<input type="hidden" name="lecture_id" value="${lecture.id}">`);
+                    
+                    // Set form values
+                    $('input[name="title"]').val(lecture.title);
+                    $('textarea[name="description"]').val(lecture.description);
+                    
+                    // Set hidden fields
+                    $('#modalInstituteId').val(lecture.institute_id);
+                    $('#modalSessionId').val(lecture.session_id);
+                    $('#modalClassId').val(lecture.class_id);
+                    $('#modalSectionId').val(lecture.section_id);
+                    $('#modalCourseId').val(lecture.course_id);
+                    $('#modalTeacherId').val(lecture.teacher_id);
+                    $('#modalSlotDate').val(lecture.slot_date);
+                    $('#modalSlotTime').val(lecture.slot_time);
+                    
+                    // Show existing files if any
+                    if (response.video_url) {
+                        $('#videoPreview').html(`
+                            <div class="mb-2">
+                                <small class="text-muted">Current Video:</small>
+                                <a href="${response.video_url}" target="_blank" class="btn btn-sm btn-outline-info">
+                                    <i class="fas fa-play-circle"></i> View Current Video
+                                </a>
+                            </div>
+                        `);
+                        $('#removeVideo').show();
                     }
-                    @endif
-                }
-            }
-        });
-    }
-    
-    // Function to load classes for filter
-    function loadFilterClasses(instituteId, sessionId) {
-        $.ajax({
-            url: "{{ route('lectures.dropdowns') }}",
-            type: "GET",
-            data: { 
-                institute_id: instituteId,
-                session_id: sessionId
-            },
-            success: function(data) {
-                $('#filter_class').empty().append('<option value="">All Classes</option>');
-                if (data.classes && data.classes.length > 0) {
-                    $.each(data.classes, function(key, value) {
-                        $('#filter_class').append(`<option value="${value.id}">${value.name}</option>`);
+                    
+                    if (response.pdf_url) {
+                        $('#pdfPreview').html(`
+                            <div class="mb-2">
+                                <small class="text-muted">Current PDF:</small>
+                                <div class="btn-group">
+                                    <a href="${response.pdf_url}" target="_blank" class="btn btn-sm btn-outline-info">
+                                        <i class="fas fa-file-pdf"></i> View PDF
+                                    </a>
+                                    <a href="${response.pdf_url}" download class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-download"></i> Download
+                                    </a>
+                                </div>
+                            </div>
+                        `);
+                        $('#removeFile').show();
+                    }
+                    
+                    // Update modal title and button text
+                    $('.modal-title').html('<i class="fas fa-edit"></i> Edit Lecture');
+                    $('button[type="submit"]').html('<i class="fas fa-save"></i> Update Lecture');
+                    
+                    // Show the modal
+                    $('#uploadModal').modal('show');
+                } else {
+                    Toast.fire({
+                        icon: 'error',
+                        title: response.message || 'Failed to load lecture details'
                     });
                 }
-            }
-        });
-    }
-    
-    // Function to load sections for filter
-    function loadFilterSections(instituteId, sessionId, classId) {
-        $.ajax({
-            url: "{{ route('lectures.dropdowns') }}",
-            type: "GET",
-            data: {
-                institute_id: instituteId,
-                session_id: sessionId,
-                class_id: classId
             },
-            success: function(data) {
-                $('#filter_section').empty().append('<option value="">All Sections</option>');
-                if (data.sections && data.sections.length > 0) {
-                    $.each(data.sections, function(key, value) {
-                        $('#filter_section').append(`<option value="${value.id}">${value.section_name}</option>`);
-                    });
-                }
+            error: function(xhr) {
+                Swal.close();
+                Toast.fire({
+                    icon: 'error',
+                    title: xhr.responseJSON?.message || 'Failed to load lecture details'
+                });
             }
         });
     }
-    
-    // Function to load courses for filter
-    function loadFilterCourses(instituteId, sessionId, classId, sectionId) {
-        $.ajax({
-            url: "{{ route('lectures.dropdowns') }}",
-            type: "GET",
-            data: {
-                institute_id: instituteId,
-                session_id: sessionId,
-                class_id: classId,
-                section_id: sectionId
-            },
-            success: function(data) {
-                $('#filter_course').empty().append('<option value="">All Courses</option>');
-                if (data.courses && data.courses.length > 0) {
-                    $.each(data.courses, function(key, value) {
-                        $('#filter_course').append(`<option value="${value.id}">${value.course_name}</option>`);
-                    });
-                }
-            }
-        });
-    }
-    
-    // Function to load teachers for filter (Admin only)
-    function loadFilterTeachers(instituteId, sessionId, classId, sectionId, courseId) {
-        $.ajax({
-            url: "{{ route('lectures.teachers') }}",
-            type: "GET",
-            data: {
-                institute_id: instituteId,
-                session_id: sessionId,
-                class_id: classId,
-                section_id: sectionId,
-                course_id: courseId
-            },
-            success: function(data) {
-                $('#filter_teacher').empty().append('<option value="">All Teachers</option>');
-                if (data.length > 0) {
-                    $.each(data, function(key, teacher) {
-                        $('#filter_teacher').append(`<option value="${teacher.id}">${teacher.name}</option>`);
-                    });
-                }
-            }
-        });
-    }
-    
-    // Apply filter button click
-    $('#applyFilter').click(function() {
-        table.ajax.reload();
-    });
-    
-    // Reset filter button click
-    $('#resetFilter').click(function() {
-        $('#filterForm')[0].reset();
-        @if(auth()->user()->hasRole('Super Admin'))
-        $('#filter_institute').val('').trigger('change');
-        @else
-        $('#filter_session').val('').trigger('change');
-        @endif
-        table.ajax.reload();
-    });
-    
-    // Initialize filter dropdowns
-    loadFilterDropdowns();
 
-    // Show/hide form
-    $('#addLectureBtn').click(function() {
-        $('#lectureForm')[0].reset();
-        $('#lectureFormContainer').show();
-        $('#lecture_id').val('');
-        $('#submitBtnText').text('Submit');
-        $('html, body').animate({
-            scrollTop: $('#lectureFormContainer').offset().top
-        }, 500);
+    // Global function to open upload modal
+    function openUploadModal(courseId, date, time, classId, sectionId, teacherId) {
+        // Reset form and clear previews
+        $('#lectureUploadForm')[0].reset();
+        $('#videoPreview').empty();
+        $('#pdfPreview').empty();
+        $('input[name="lecture_id"]').remove();
         
-        // Set default lecture date to today
-        $('#lecture_date').val(new Date().toISOString().split('T')[0]);
+        // Reset modal title and button text
+        $('.modal-title').html('<i class="fas fa-upload"></i> Upload Lecture');
+        $('#submitBtnText').text('Upload Lecture');
         
+        // Set modal values
+        $('#modalInstituteId').val($('#institute_id').val());
+        $('#modalSessionId').val($('#session_id').val());
+        $('#modalCourseId').val(courseId);
+        $('#modalClassId').val(classId);
+        $('#modalSectionId').val(sectionId);
+        $('#modalTeacherId').val(teacherId);
+        $('#modalSlotDate').val(date);
+        $('#modalSlotTime').val(time);
+        
+        // Show modal
+        $('#uploadModal').modal('show');
+    }
+
+    $(document).ready(function() {
+        // Initialize Toast
+        window.Toast = Swal.mixin({
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 3000,
+            timerProgressBar: true
+        });
+
+        // Set up CSRF token for all AJAX requests
+        $.ajaxSetup({
+            headers: {
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+            }
+        });
+
         // For Admin - load data immediately
         @if(!auth()->user()->hasRole('Super Admin'))
         loadInitialDataForAdmin();
         @endif
-    });
-
-    $('#cancelBtn').click(function() {
-        $('#lectureFormContainer').hide();
-    });
-
-    // For Super Admin - load dropdowns when institute is selected
-    @if(auth()->user()->hasRole('Super Admin'))
-    $('#institute_idd').change(function() {
-        var instituteId = $(this).val();
-        if (instituteId) {
-            loadSessions(instituteId);
-            $('#class_id, #section_id, #course_id, #teacher_id').empty().append('<option value="">Select</option>');
-        } else {
-            clearAllDropdowns();
-        }
-    });
-    @endif
-    
-    // When session changes, load classes for that session
-    $('#session_id').change(function() {
-        var sessionId = $(this).val();
-        var instituteId = $('#institute_id').val();
-
-        if (sessionId && instituteId) {
-            $.ajax({
-                url: "{{ route('lectures.dropdowns') }}",
-                type: "GET",
-                data: { 
-                    institute_id: instituteId,
-                    session_id: sessionId
-                },
-                success: function(data) {
-                    $('#class_id').empty().append('<option value="">Select Class</option>');
-                    if (data.classes && data.classes.length > 0) {
-                        $.each(data.classes, function(key, value) {
-                            $('#class_id').append(`<option value="${value.id}">${value.name}</option>`);
-                        });
-                    } else {
-                        $('#class_id').append('<option value="">No classes found</option>');
-                    }
-                },
-                error: function(xhr) {
-                    console.error('Error loading classes:', xhr.responseText);
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error',
-                        text: 'Failed to load classes. Please check console for details.'
-                    });
-                }
-            });
-        } else {
-            $('#class_id').empty().append('<option value="">Select Class</option>');
-        }
-    });
-
-    // When class changes, load sections for that class
-    $('#class_id').change(function() {
-        var classId = $(this).val();
-        var instituteId = $('#institute_id').val();
-        var sessionId = $('#session_id').val();
-
-        if (classId && instituteId && sessionId) {
-            $.ajax({
-                url: "{{ route('lectures.dropdowns') }}",
-                type: "GET",
-                data: {
-                    institute_id: instituteId,
-                    session_id: sessionId,
-                    class_id: classId
-                },
-                success: function(data) {
-                    $('#section_id').empty().append('<option value="">Select Section</option>');
-                    if (data.sections && data.sections.length > 0) {
-                        $.each(data.sections, function(key, value) {
-                            $('#section_id').append(`<option value="${value.id}">${value.section_name}</option>`);
-                        });
-                    } else {
-                        $('#section_id').append('<option value="">No sections found</option>');
-                    }
-                },
-                error: function(xhr) {
-                    console.error('Error loading sections:', xhr.responseText);
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error',
-                        text: 'Failed to load sections. Please check console for details.'
-                    });
-                }
-            });
-        } else {
-            $('#section_id').empty().append('<option value="">Select Section</option>');
-        }
-    });
-
-    // When section changes, load courses for that section
-    $('#section_id').change(function() {
-        var sectionId = $(this).val();
-        var instituteId = $('#institute_id').val();
-        var sessionId = $('#session_id').val();
-        var classId = $('#class_id').val();
-
-        if (sectionId && instituteId && sessionId && classId) {
-            $.ajax({
-                url: "{{ route('lectures.dropdowns') }}",
-                type: "GET",
-                data: {
-                    institute_id: instituteId,
-                    session_id: sessionId,
-                    class_id: classId,
-                    section_id: sectionId
-                },
-                success: function(data) {
-                    $('#course_id').empty().append('<option value="">Select Course</option>');
-                    if (data.courses && data.courses.length > 0) {
-                        $.each(data.courses, function(key, value) {
-                            $('#course_id').append(`<option value="${value.id}">${value.course_name}</option>`);
-                        });
-                    } else {
-                        $('#course_id').append('<option value="">No courses found</option>');
-                    }
-                },
-                error: function(xhr) {
-                    console.error('Error loading courses:', xhr.responseText);
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error',
-                        text: 'Failed to load courses. Please check console for details.'
-                    });
-                }
-            });
-        } else {
-            $('#course_id').empty().append('<option value="">Select Course</option>');
-        }
-    });
-
-    // When course changes, load teachers for that course
-    $('#course_id').change(function() {
-        var courseId = $(this).val();
-        var instituteId = $('#institute_id').val();
-        var sessionId = $('#session_id').val();
-        var classId = $('#class_id').val();
-        var sectionId = $('#section_id').val();
-
-        if (courseId && instituteId && sessionId && classId && sectionId) {
-            $.ajax({
-                url: "{{ route('lectures.teachers') }}",
-                type: "GET",
-                data: {
-                    institute_id: instituteId,
-                    session_id: sessionId,
-                    class_id: classId,
-                    section_id: sectionId,
-                    course_id: courseId
-                },
-                success: function(data) {
-                    $('#teacher_id').empty().append('<option value="">Select Teacher</option>');
-                    if (data.length > 0) {
-                        $.each(data, function(key, teacher) {
-                            $('#teacher_id').append(`<option value="${teacher.id}">${teacher.name}</option>`);
-                        });
-                    } else {
-                        $('#teacher_id').append('<option value="">No teachers found for this course</option>');
-                        Swal.fire({
-                            icon: 'warning',
-                            title: 'No Teachers Found',
-                            text: 'There are no teachers enrolled in this course/section combination.'
-                        });
-                    }
-                },
-                error: function(xhr) {
-                    console.error('Error loading teachers:', xhr.responseText);
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error',
-                        text: 'Failed to load teachers. Please check console for details.'
-                    });
-                }
-            });
-        } else {
-            $('#teacher_id').empty().append('<option value="">Select Teacher</option>');
-        }
-    });
-
-    // Function to load sessions
-    function loadSessions(instituteId, callback) {
-        $.ajax({
-            url: "{{ route('lectures.dropdowns') }}",
-            type: "GET",
-            data: { institute_id: instituteId },
-            success: function(data) {
+        
+        // For Super Admin - handle institute change
+        @if(auth()->user()->hasRole('Super Admin'))
+        $('#institute_select').change(function() {
+            const instituteId = $(this).val();
+            $('#institute_id').val(instituteId);
+            if (instituteId) {
+                loadSessionsAndSelectCurrent(instituteId);
+            } else {
                 $('#session_id').empty().append('<option value="">Select Session</option>');
-                if(data.sessions && data.sessions.length > 0) {
-                    $.each(data.sessions, function(key, value) {
-                        $('#session_id').append(`<option value="${value.id}">${value.session_name}</option>`);
-                    });
-                }
-                if (callback) callback();
-            },
-            error: function(xhr) {
-                console.error('Error loading sessions:', xhr.responseText);
-                if (callback) callback();
+                $('#courseListGroup').empty();
             }
         });
-    }
+        @endif
+        
+        // When session changes, load courses
+        $('#session_id').change(function() {
+            const sessionId = $(this).val();
+            if (sessionId) {
+                loadCourses();
+            } else {
+                $('#courseListGroup').empty();
+                $('#lectureContentContainer').hide();
+            }
+        });
 
-    // Function to load initial data for Admin
-    function loadInitialDataForAdmin() {
-        var instituteId = $('#institute_id').val();
-        if (instituteId) {
-            loadSessions(instituteId);
+        function loadInitialDataForAdmin() {
+            const instituteId = $('#institute_id').val();
+            if (instituteId) {
+                loadSessionsAndSelectCurrent(instituteId);
+            }
         }
-    }
 
-    // Function to clear all dropdowns
-    function clearAllDropdowns() {
-        $('#session_id, #class_id, #section_id, #course_id, #teacher_id').empty().append('<option value="">Select</option>');
-    }
-
-    // Form submission handler
-    $('#lectureForm').submit(function(e) {
-        e.preventDefault();
-        
-        // Clear previous errors
-        $('.is-invalid').removeClass('is-invalid');
-        $('.invalid-feedback').text('');
-        
-        // Show loader
-        $('#submitBtn').prop('disabled', true);
-        $('#submitBtnText').addClass('d-none');
-        $('#submitBtnLoader').removeClass('d-none');
-        
-        // Get form data
-        var formData = new FormData(this);
-        var url = $('#lecture_id').val()
-            ? '/lectures/update/' + $('#lecture_id').val()
-            : "{{ route('lectures.store') }}";
-
-        var method = 'POST';
-        
-        // If updating, add the ID to the form data
-        if ($('#lecture_id').val()) {
-            formData.append('_method', 'PUT');
-        }
-        
-        $.ajax({
-            url: url,
-            type: method,
-            data: formData,
-            processData: false,
-            contentType: false,
-            success: function(response) {
-                // Hide form
-                $('#lectureFormContainer').hide();
-                
-                // Show success message
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Success',
-                    text: response.message,
-                    timer: 2000,
-                    showConfirmButton: false
-                });
-                
-                // Reload table
-                table.ajax.reload(null, false);
-            },
-            error: function(xhr) {
-                if (xhr.status === 422) {
-                    let errors = xhr.responseJSON.errors;
-                    for (let field in errors) {
-                        $('#'+field).addClass('is-invalid');
-                        $('#'+field+'_error').text(errors[field][0]);
-                    }
-                } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error',
-                        text: xhr.responseJSON?.message || 'Something went wrong!'
-                    });
-                }
-            },
-            complete: function() {
-                // Hide loader
-                $('#submitBtn').prop('disabled', false);
-                $('#submitBtnText').removeClass('d-none');
-                $('#submitBtnLoader').addClass('d-none');
-            }
-        });
-    });
-
-    // Edit button click
-    $(document).on('click', '.edit-btn', function() {
-        var lectureId = $(this).data('id');
-        
-        // Show loader on button
-        $(this).html('<i class="fas fa-spinner fa-spin"></i> Loading...');
-        
-        $.ajax({
-            url: "{{ url('lectures/edit') }}/" + lectureId,
-            type: "GET",
-            success: function(response) {
-                // Reset button text
-                $('.edit-btn').html('<i class="fas fa-edit"></i> Edit');
-                
-                if (response.error) {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error',
-                        text: response.message || 'Failed to load lecture data'
-                    });
-                    return;
-                }
-
-                // Populate form with lecture data
-                $('#lectureForm')[0].reset();
-                $('#lecture_id').val(response.lecture.id);
-                $('#title').val(response.lecture.title);
-                $('#description').val(response.lecture.description);
-                $('#lecture_date').val(response.lecture.lecture_date);
-                $('#status').val(response.lecture.status).trigger('change');
-                
-                // For Super Admin - set institute and load data
-                @if(auth()->user()->hasRole('Super Admin'))
-                $('#institute_idd').val(response.lecture.institute_id).trigger('change', [function() {
-                    loadInitialDataForEdit(response);
-                }]);
-                @else
-                loadInitialDataForEdit(response);
-                @endif
-                
-                // Show the form
-                $('#lectureFormContainer').show();
-                $('html, body').animate({
-                    scrollTop: $('#lectureFormContainer').offset().top
-                }, 500);
-                
-                // Show file previews if they exist
-                if (response.video_url) {
-                    $('#video_preview').html(`
-                        <div class="alert alert-info p-2">
-                            <i class="fas fa-video me-2"></i>
-                            <a href="${response.video_url}" target="_blank">Current Video</a>
-                            <button type="button" class="btn btn-sm btn-danger float-end remove-file" data-type="video">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    `);
-                }
-                
-                if (response.pdf_url) {
-                    $('#pdf_preview').html(`
-                        <div class="alert alert-info p-2">
-                            <i class="fas fa-file-pdf me-2"></i>
-                            <a href="${response.pdf_url}" target="_blank">Current PDF</a>
-                            <button type="button" class="btn btn-sm btn-danger float-end remove-file" data-type="pdf">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    `);
-                }
-            },
-            error: function(xhr) {
-                $('.edit-btn').html('<i class="fas fa-edit"></i> Edit');
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    text: xhr.responseJSON?.message || 'Failed to load lecture data'
-                });
-            }
-        });
-    });
-    
-    // Function to load initial data for edit
-    function loadInitialDataForEdit(response) {
-        var instituteId = response.lecture.institute_id;
-        var sessionId = response.lecture.session_id;
-        var classId = response.lecture.class_id;
-        var sectionId = response.lecture.section_id;
-        var courseId = response.lecture.course_id;
-        var teacherId = response.lecture.teacher_id;
-
-        // Load sessions
-        loadSessions(instituteId, function() {
-            $('#session_id').val(sessionId);
-            
-            // Load classes for this session
+        function loadSessionsAndSelectCurrent(instituteId) {
             $.ajax({
                 url: "{{ route('lectures.dropdowns') }}",
                 type: "GET",
-                data: { 
-                    institute_id: instituteId,
-                    session_id: sessionId
-                },
+                data: { institute_id: instituteId },
                 success: function(data) {
-                    $('#class_id').empty().append('<option value="">Select Class</option>');
-                    if (data.classes && data.classes.length > 0) {
-                        $.each(data.classes, function(key, value) {
-                            $('#class_id').append(`<option value="${value.id}">${value.name}</option>`);
-                        });
-                    }
-                    $('#class_id').val(classId);
+                    $('#session_id').empty().append('<option value="">Select Session</option>');
                     
-                    // Load sections for this class
-                    $.ajax({
-                        url: "{{ route('lectures.dropdowns') }}",
-                        type: "GET",
-                        data: {
-                            institute_id: instituteId,
-                            session_id: sessionId,
-                            class_id: classId
-                        },
-                        success: function(data) {
-                            $('#section_id').empty().append('<option value="">Select Section</option>');
-                            if (data.sections && data.sections.length > 0) {
-                                $.each(data.sections, function(key, value) {
-                                    $('#section_id').append(`<option value="${value.id}">${value.section_name}</option>`);
-                                });
-                            }
-                            $('#section_id').val(sectionId);
+                    if(data.sessions && data.sessions.length > 0) {
+                        let currentSessionId = null;
+                        const now = new Date();
+                        
+                        data.sessions.forEach(function(session) {
+                            const startDate = session.start_date ? new Date(session.start_date) : null;
+                            const endDate = session.end_date ? new Date(session.end_date) : null;
+                            const isCurrent = startDate && endDate && now >= startDate && now <= endDate;
                             
-                            // Load courses for this section
-                            $.ajax({
-                                url: "{{ route('lectures.dropdowns') }}",
-                                type: "GET",
-                                data: {
-                                    institute_id: instituteId,
-                                    session_id: sessionId,
-                                    class_id: classId,
-                                    section_id: sectionId
-                                },
-                                success: function(data) {
-                                    $('#course_id').empty().append('<option value="">Select Course</option>');
-                                    if (data.courses && data.courses.length > 0) {
-                                        $.each(data.courses, function(key, value) {
-                                            $('#course_id').append(`<option value="${value.id}">${value.course_name}</option>`);
-                                        });
-                                    }
-                                    $('#course_id').val(courseId);
-                                    
-                                    // Load teachers for this course
-                                    $.ajax({
-                                        url: "{{ route('lectures.teachers') }}",
-                                        type: "GET",
-                                        data: {
-                                            institute_id: instituteId,
-                                            session_id: sessionId,
-                                            class_id: classId,
-                                            section_id: sectionId,
-                                            course_id: courseId
-                                        },
-                                        success: function(data) {
-                                            $('#teacher_id').empty().append('<option value="">Select Teacher</option>');
-                                            if (data.length > 0) {
-                                                $.each(data, function(key, teacher) {
-                                                    $('#teacher_id').append(`<option value="${teacher.id}">${teacher.name}</option>`);
-                                                });
-                                            }
-                                            $('#teacher_id').val(teacherId);
-                                        }
-                                    });
-                                }
+                            if (isCurrent) {
+                                currentSessionId = session.id;
+                            }
+                            
+                            $('#session_id').append(`
+                                <option value="${session.id}" ${isCurrent ? 'selected' : ''}>
+                                    ${session.session_name}
+                                    ${isCurrent ? ' (Current)' : ''}
+                                </option>
+                            `);
+                        });
+                        
+                        if (currentSessionId) {
+                            $('#session_id').val(currentSessionId).trigger('change');
+                            Toast.fire({
+                                icon: 'success',
+                                title: 'Current session loaded successfully'
+                            });
+                        } else {
+                            Toast.fire({
+                                icon: 'info',
+                                title: 'No current session found'
                             });
                         }
+                    }
+                },
+                error: function(xhr) {
+                    Toast.fire({
+                        icon: 'error',
+                        title: 'Failed to load sessions'
                     });
                 }
             });
-        });
-    }
-
-    // Remove file button click
-    $(document).on('click', '.remove-file', function() {
-        var type = $(this).data('type');
-        $('#' + type + '_preview').empty();
-        $('#' + type).val('');
-    });
-
-    // Delete button click
-    $(document).on('click', '.delete-btn', function() {
-        let lectureId = $(this).data('id');
-        let $button = $(this);
+        }
         
-        Swal.fire({
-            title: 'Are you sure?',
-            text: "You won't be able to revert this!",
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#3085d6',
-            cancelButtonColor: '#d33',
-            confirmButtonText: 'Yes, delete it!'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                // Show loader on button
-                $button.html('<i class="fas fa-spinner fa-spin"></i> Deleting...');
-                
-                $.ajax({
-                    url: "{{ url('lectures/delete') }}/" + lectureId,
-                    type: "DELETE",
-                    data: {
-                        _token: "{{ csrf_token() }}"
-                    },
-                    success: function(response) {
-                        Swal.fire(
-                            'Deleted!',
-                            response.message,
-                            'success'
-                        );
-                        table.ajax.reload(null, false);
-                    },
-                    error: function(xhr) {
-                        Swal.fire(
-                            'Error!',
-                            xhr.responseJSON?.message || 'Something went wrong while deleting.',
-                            'error'
-                        );
-                    },
-                    complete: function() {
-                        // Reset button text
-                        $button.html('<i class="fas fa-trash"></i> Delete');
+        function loadCourses() {
+            $('#courseLoading').show();
+            $('#noCourseFound').hide();
+            $('#lectureContentContainer').hide();
+
+            const data = {
+                institute_id: $('#institute_id').val(),
+                session_id: $('#session_id').val()
+            };
+
+            $.ajax({
+                url: "{{ route('lectures.get-courses') }}",
+                type: "GET",
+                data: data,
+                success: function(courses) {
+                    $('#courseLoading').hide();
+                    $('#courseListGroup').empty();
+
+                    if (courses && courses.length > 0) {
+                        courses.forEach(function(course) {
+                            const courseCard = `
+                                <div class="list-group-item course-card" 
+                                    data-course-id="${course.id}" 
+                                    data-class-id="${course.class_id}" 
+                                    data-section-id="${course.section_id}" 
+                                    data-teacher-id="${course.teacher_id}"
+                                    style="border-left: 4px solid ${course.background_color || '#3490dc'}; background: linear-gradient(135deg, ${course.background_color}11 0%, #ffffff 100%);">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <h6 class="mb-1">${course.course_name}</h6>
+                                        <span class="badge rounded-pill" style="background-color: ${course.background_color || '#3490dc'}">
+                                            ${course.class_name} - ${course.section_name}
+                                        </span>
+                                    </div>
+                                    <p class="mb-1 text-muted small">
+                                        <i class="fas fa-user-tie"></i> ${course.teacher_name}
+                                    </p>
+                                </div>
+                            `;
+                            $('#courseListGroup').append(courseCard);
+                        });
+
+                        // Handle course card click
+                        $('.course-card').click(function() {
+                            $('.course-card').removeClass('active');
+                            $(this).addClass('active');
+                            
+                            const courseId = $(this).data('course-id');
+                            const classId = $(this).data('class-id');
+                            const sectionId = $(this).data('section-id');
+                            const teacherId = $(this).data('teacher-id');
+                            const courseName = $(this).find('h6').text();
+                            const courseInfo = $(this).find('.badge').text();
+                            
+                            $('#selectedCourseInfo').html(`
+                                <span class="text-primary">${courseName}</span>
+                                <small class="text-muted ms-2">${courseInfo}</small>
+                            `);
+                            
+                            loadTimeSlots(courseId, classId, sectionId, teacherId);
+                            $('#lectureContentContainer').show();
+                        });
+                    } else {
+                        $('#noCourseFound').show();
                     }
+                },
+                error: function(xhr) {
+                    $('#courseLoading').hide();
+                    $('#noCourseFound').show();
+                    Toast.fire({
+                        icon: 'error',
+                        title: xhr.responseJSON?.error || 'Failed to load courses'
+                    });
+                }
+            });
+        }
+        
+        function loadTimeSlots(courseId, classId, sectionId, teacherId) {
+            const data = {
+                institute_id: $('#institute_id').val(),
+                session_id: $('#session_id').val(),
+                course_id: courseId,
+                class_id: classId,
+                section_id: sectionId,
+                teacher_id: teacherId
+            };
+            
+            $.ajax({
+                url: "{{ route('lectures.get-time-slots') }}",
+                type: "GET",
+                data: data,
+                success: function(slots) {
+                    displayTimeSlots(courseId, slots);
+                },
+                error: function(xhr) {
+                    Toast.fire({
+                        icon: 'error',
+                        title: xhr.responseJSON?.error || 'Failed to load time slots'
+                    });
+                }
+            });
+        }
+        
+        function displayTimeSlots(courseId, slots) {
+            const tbody = $('#timeSlotsTableBody');
+            tbody.empty();
+            const isStudent = {{ auth()->user()->hasRole('Student') ? 'true' : 'false' }};
+
+            if (slots && slots.length > 0) {
+                slots.forEach(function(slot) {
+                    const isAvailable = slot.status === 'Available';
+                    const formattedDate = moment(slot.date).format('YYYY-MM-DD');
+                    const displayDate = moment(slot.date).format('DD MMM YYYY');
+                    
+                    const row = `
+                        <tr class="${isAvailable ? '' : 'table-success'}">
+                            <td>${displayDate}</td>
+                            <td>${slot.slot_times}</td>
+                            <td>Week ${slot.week}</td>
+                            <td class="text-center">
+                                <span class="badge bg-${isAvailable ? 'warning' : 'success'} rounded-pill">
+                                    ${slot.status}
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                ${isAvailable && !isStudent ? `
+                                    <button class="btn btn-sm btn-primary upload-btn" 
+                                        onclick="openUploadModal('${courseId}', '${formattedDate}', '${slot.slot_times}', '${slot.class_id}', '${slot.section_id}', '${slot.teacher_id}')">
+                                        <i class="fas fa-upload"></i> Upload
+                                    </button>
+                                ` : !isAvailable ? `
+                                    <div class="action-buttons">
+                                        <div class="btn-group">
+                                            <a href="/lectures/view/${slot.lecture_id}" target="_blank" class="btn btn-info btn-sm">
+                                                <i class="fas fa-eye"></i> View
+                                            </a>
+                                            ${!isStudent ? `
+                                                <button type="button" class="btn btn-primary btn-sm edit-lecture-btn" 
+                                                    data-lecture-id="${slot.lecture_id}" 
+                                                    onclick="editLecture(${slot.lecture_id})">
+                                                    <i class="fas fa-edit"></i> Edit
+                                                </button>
+                                            ` : ''}
+                                        </div>
+                                    </div>
+                                ` : ''}
+                            </td>
+                        </tr>
+                    `;
+                    tbody.append(row);
                 });
+            } else {
+                tbody.html(`
+                    <tr>
+                        <td colspan="5" class="text-center text-muted py-4">
+                            <i class="fas fa-info-circle me-2"></i>No time slots available
+                        </td>
+                    </tr>
+                `);
+            }
+        }
+
+        // Handle file input changes and removal
+        $('input[name="video_file"]').change(function() {
+            if (this.files.length > 0) {
+                $('#removeVideo').show();
+            } else {
+                $('#removeVideo').hide();
             }
         });
-    });
 
-    // File preview handlers
-    $('#video').change(function() {
-        var file = this.files[0];
-        if (file) {
-            $('#video_preview').html(`
-                <div class="alert alert-info p-2">
-                    <i class="fas fa-video me-2"></i> ${file.name}
-                    <button type="button" class="btn btn-sm btn-danger float-end remove-file" data-type="video">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            `);
-        }
-    });
+        $('input[name="lecture_file"]').change(function() {
+            if (this.files.length > 0) {
+                $('#removeFile').show();
+            } else {
+                $('#removeFile').hide();
+            }
+        });
 
-    $('#pdf').change(function() {
-        var file = this.files[0];
-        if (file) {
-            $('#pdf_preview').html(`
-                <div class="alert alert-info p-2">
-                    <i class="fas fa-file-pdf me-2"></i> ${file.name}
-                    <button type="button" class="btn btn-sm btn-danger float-end remove-file" data-type="pdf">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            `);
+        $('#removeVideo').click(function() {
+            $('input[name="video_file"]').val('');
+            $(this).hide();
+        });
+
+        $('#removeFile').click(function() {
+            $('input[name="lecture_file"]').val('');
+            $(this).hide();
+        });
+
+        // Handle form submission
+        $('#lectureUploadForm').submit(function(e) {
+            e.preventDefault();
+            
+            const submitBtn = $(this).find('button[type="submit"]');
+            const spinner = submitBtn.find('.spinner-border');
+            const lectureId = $('input[name="lecture_id"]').val();
+            
+            submitBtn.prop('disabled', true);
+            spinner.removeClass('d-none');
+            
+            const formData = new FormData(this);
+            if (lectureId) {
+                formData.append('_method', 'PUT');
+            }
+            
+            // Determine if this is an update or new upload
+            const url = lectureId 
+                ? `/lectures/update/${lectureId}`
+                : "{{ route('lectures.store') }}";
+            
+            $.ajax({
+                url: url,
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(response) {
+                    if (response.success) {
+                        $('#uploadModal').modal('hide');
+                        Toast.fire({
+                            icon: 'success',
+                            title: lectureId ? 'Lecture updated successfully' : 'Lecture uploaded successfully'
+                        });
+                        
+                        // Reload time slots to show updated status
+                        loadTimeSlots(
+                            $('#modalCourseId').val(),
+                            $('#modalClassId').val(),
+                            $('#modalSectionId').val(),
+                            $('#modalTeacherId').val()
+                        );
+                    } else {
+                        Toast.fire({
+                            icon: 'error',
+                            title: response.message || 'Failed to process lecture'
+                        });
+                    }
+                },
+                error: function(xhr) {
+                    Toast.fire({
+                        icon: 'error',
+                        title: xhr.responseJSON?.message || 'Something went wrong!'
+                    });
+                },
+                complete: function() {
+                    submitBtn.prop('disabled', false);
+                    spinner.addClass('d-none');
+                }
+            });
+        });
+
+        // Filter buttons functionality
+        $('#todayBtn').click(function() {
+            filterTimeSlots('today');
+        });
+
+        $('#weekBtn').click(function() {
+            filterTimeSlots('week');
+        });
+
+        $('#allBtn').click(function() {
+            filterTimeSlots('all');
+        });
+
+        function filterTimeSlots(filter) {
+            const rows = $('#timeSlotsTableBody tr');
+            const today = moment();
+            
+            rows.each(function() {
+                const date = moment($(this).find('td:first').text(), 'DD MMM YYYY');
+                
+                if (filter === 'today') {
+                    $(this).toggle(date.isSame(today, 'day'));
+                } else if (filter === 'week') {
+                    $(this).toggle(date.isSame(today, 'week'));
+                } else {
+                    $(this).show();
+                }
+            });
         }
+
+        // For students, automatically load their courses
+        @if(auth()->user()->hasRole('Student') && isset($currentSession))
+            $('#session_id').val('{{ $currentSession['id'] }}');
+            loadCourses();
+        @endif
     });
-});
 </script>
 @endpush

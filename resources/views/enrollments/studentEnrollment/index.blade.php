@@ -19,58 +19,58 @@
                         </div>
                     </div>
                 </div>
-
+                
                 <!-- Enrollment Form (Initially Hidden) -->
                 <div class="card-body p-0" id="enrollmentFormContainer" style="display: none;">
                     <div class="row g-0">
                         <!-- Class/Section Selection Sidebar -->
                         <div class="col-md-4 border-end">
                             <div class="p-3">
-                                <form id="enrollmentForm">
-                                    @csrf
-                                    <input type="hidden" name="id" id="enrollment_id">
+                    <form id="enrollmentForm">
+                        @csrf
+                        <input type="hidden" name="id" id="enrollment_id">
                                     <input type="hidden" name="institute_id" id="institute_id" value="{{ auth()->user()->institute_id ?? '' }}">
                                     <input type="hidden" name="class_id" id="class_id">
                                     <input type="hidden" name="section_id" id="section_id">
                                     <input type="hidden" name="status" id="status" value="active">
-                                    
+                       
                                     <div class="mb-4">
-                                        @if(auth()->user()->hasRole('Super Admin'))
+                            @if(auth()->user()->hasRole('Super Admin'))
                                         <div class="form-group mb-3">
                                             <label for="institute_select" class="form-label fw-bold">
                                                 <i class="fas fa-university"></i> Institute
                                             </label>
                                             <select name="institute_select" id="institute_select" class="form-control form-select" required>
-                                                <option value="">Select Institute</option>
-                                                @foreach($institutes as $institute)
-                                                    <option value="{{ $institute->id }}">{{ $institute->name }}</option>
-                                                @endforeach
-                                            </select>
-                                        </div>
-                                        @endif
-
+                                        <option value="">Select Institute</option>
+                                        @foreach($institutes as $institute)
+                                            <option value="{{ $institute->id }}">{{ $institute->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            @endif
+                            
                                         <!-- Session and Date Fields in One Row -->
                                         <div class="row">
                                             <div class="col-md-6">
-                                                <div class="form-group">
+                                <div class="form-group">
                                                     <label for="session_id" class="form-label fw-bold">
                                                         <i class="fas fa-calendar-alt"></i> Academic Session
                                                     </label>
                                                     <select name="session_id" id="session_id" class="form-control form-select" required>
-                                                        <option value="">Select Session</option>
-                                                    </select>
-                                                </div>
-                                            </div>
+                                        <option value="">Select Session</option>
+                                    </select>
+                                </div>
+                            </div>
                                             <div class="col-md-6">
-                                                <div class="form-group">
+                                <div class="form-group">
                                                     <label for="enrollment_date" class="form-label fw-bold">
                                                         <i class="fas fa-calendar"></i> Enrollment Date
                                                     </label>
                                                     <input type="date" class="form-control" id="enrollment_date" name="enrollment_date" value="{{ date('Y-m-d') }}" required>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
+                                </div>
+                            </div>
+                                </div>
+                            </div>
 
                                     <h5 class="mb-3"><i class="fas fa-chalkboard"></i> Select Class & Section</h5>
                                     <div id="classListContainer">
@@ -79,13 +79,13 @@
                                             <div class="text-center py-5" id="classLoading">
                                                 <div class="spinner-border text-primary" role="status">
                                                     <span class="visually-hidden">Loading...</span>
-                                                </div>
+                                </div>
                                                 <p class="mt-2">Loading available classes...</p>
-                                            </div>
+                            </div>
                                             <div class="text-center py-5" id="noClassFound" style="display: none;">
                                                 <div class="alert alert-info">
                                                     <i class="fas fa-info-circle"></i> No classes found for this session.
-                                                </div>
+                                </div>
                                             </div>
                                             <div class="text-center py-5" id="selectSectionMessage" style="display: block;">
                                                 <div class="alert alert-warning">
@@ -97,7 +97,7 @@
                                 </form>
                             </div>
                         </div>
-
+                        
                         <!-- Course Selection and Student Enrollment Area -->
                         <div class="col-md-8" id="courseSelectionContainer" style="display: none;">
                             <div class="p-3">
@@ -112,15 +112,15 @@
                                     </div>
                                     <div class="card-body">
                                         <div class="row">
-                                            <div class="col-md-12">
+                            <div class="col-md-12">
                                                 <div id="coursesContainer">
                                                     <!-- Courses will be loaded here as checkboxes -->
-                                                </div>
-                                            </div>
                                         </div>
                                     </div>
                                 </div>
-
+                                </div>
+                            </div>
+                            
                                 <!-- Student Selection Area -->
                                 <div class="card mb-4">
                                     <div class="card-header">
@@ -129,42 +129,42 @@
                                     <div class="card-body">
                                         <div class="row align-items-end mb-3">
                                             <div class="col-md-8">
-                                                <div class="form-group">
+                                <div class="form-group">
                                                     <label for="csv_file" class="form-label">Upload CSV with Roll Numbers</label>
                                                     <div class="input-group">
                                                         <input type="file" name="csv_file" id="csv_file" class="form-control" accept=".csv">
                                                         <button type="button" id="processCsvBtn" class="btn btn-info">
-                                                            <i class="fas fa-upload"></i> Process CSV
-                                                        </button>
-                                                    </div>
+                                        <i class="fas fa-upload"></i> Process CSV
+                                    </button>
+                                </div>
                                                     <small class="text-muted">CSV should contain a column named "roll_number"</small>
-                                                </div>
-                                            </div>
+                            </div>
+                        </div>
                                         </div>
                                         <div id="studentsContainer" style="display: none;">
-                                            <div class="form-group">
+                                <div class="form-group">
                                                 <label for="student_ids" class="form-label">Selected Students</label>
                                                 <select name="student_ids[]" id="student_ids" class="form-control select2-container" multiple>
-                                                    <!-- Students will be loaded here -->
-                                                </select>
+                                        <!-- Students will be loaded here -->
+                                    </select>
                                             </div>
-                                        </div>
-                                    </div>
                                 </div>
-
+                            </div>
+                        </div>
+                        
                                 <!-- Submit Button -->
                                 <div class="text-end">
                                     <button type="button" id="cancelBtn" class="btn btn-secondary btn-sm me-2">Cancel</button>
                                     <button type="submit" form="enrollmentForm" id="submitBtn" class="btn btn-primary btn-sm">
                                         <span id="submitBtnText">Enroll Students</span>
-                                        <span id="submitBtnLoader" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-                                    </button>
-                                </div>
+                                    <span id="submitBtnLoader" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                                </button>
                             </div>
+                        </div>
                         </div>
                     </div>
                 </div>
-
+                
                 <!-- Enrollments Table -->
                 <div class="card-body" style="border-top:1px solid #000">
                     <div style="overflow-x:auto;">
@@ -275,7 +275,7 @@ $(document).ready(function() {
         const sessionId = $(this).val();
         if (sessionId) {
             loadClasses(sessionId);
-        } else {
+                            } else {
             $('#classListGroup').empty();
             $('#selectSectionMessage').show();
             $('#courseSelectionContainer').hide();
@@ -344,17 +344,17 @@ $(document).ready(function() {
         $('#selectSectionMessage').hide();
         $('#courseSelectionContainer').hide();
         
-        $.ajax({
-            url: "{{ route('enrollments.dropdowns') }}",
-            type: "GET",
-            data: { 
+            $.ajax({
+                url: "{{ route('enrollments.dropdowns') }}",
+                type: "GET",
+                data: { 
                 institute_id: $('#institute_id').val(),
-                session_id: sessionId
-            },
-            success: function(data) {
+                    session_id: sessionId
+                },
+                success: function(data) {
                 $('#classListGroup').empty();
                 
-                if (data.classes && data.classes.length > 0) {
+                    if (data.classes && data.classes.length > 0) {
                     data.classes.forEach(function(classItem) {
                         getSectionsForClass($('#institute_id').val(), classItem.id, classItem);
                     });
@@ -369,7 +369,7 @@ $(document).ready(function() {
                             }
                         }, 100);
                     }
-                } else {
+        } else {
                     $('#classLoading').hide();
                     $('#noClassFound').show();
                 }
@@ -379,15 +379,15 @@ $(document).ready(function() {
 
     // Function to get sections for a class
     function getSectionsForClass(instituteId, classId, classItem) {
-        $.ajax({
-            url: "{{ route('enrollments.dropdowns') }}",
-            type: "GET",
-            data: {
+            $.ajax({
+                url: "{{ route('enrollments.dropdowns') }}",
+                type: "GET",
+                data: {
                 institute_id: instituteId,
                 class_id: classId
-            },
-            success: function(data) {
-                if (data.sections && data.sections.length > 0) {
+                },
+                success: function(data) {
+                    if (data.sections && data.sections.length > 0) {
                     createClassCard(classItem, data.sections);
                 }
                 $('#classLoading').hide();
@@ -481,12 +481,12 @@ $(document).ready(function() {
                         const courseCheckbox = `
                             <div class="form-check mb-2">
                                 <input class="form-check-input" type="checkbox" 
-                                    name="courses[]" id="course_${course.id}" 
-                                    value="${course.id}">
-                                <label class="form-check-label" for="course_${course.id}">
-                                    ${course.course_name}
-                                </label>
-                            </div>
+                                        name="courses[]" id="course_${course.id}" 
+                                        value="${course.id}">
+                                    <label class="form-check-label" for="course_${course.id}">
+                                        ${course.course_name}
+                                    </label>
+                                </div>
                         `;
                         $('#coursesContainer').append(courseCheckbox);
                     });
@@ -736,7 +736,7 @@ $(document).ready(function() {
     });
 
     // Form submission
-    $('#enrollmentForm').submit(function(e) {
+   $('#enrollmentForm').submit(function(e) {
         e.preventDefault();
         
         if (!validateForm()) {
@@ -938,7 +938,7 @@ $(document).ready(function() {
         // Clear and hide containers
         $('#classListGroup').empty();
         $('#coursesContainer').empty();
-        $('#student_ids').empty();
+                            $('#student_ids').empty();
         
         // Reset Select2 if it exists
         if ($('#student_ids').data('select2')) {
@@ -958,9 +958,9 @@ $(document).ready(function() {
     }
 
     function initializeSelect2() {
-        $('#student_ids').select2({
+                            $('#student_ids').select2({
             theme: 'bootstrap-5',
-            width: '100%',
+                                width: '100%',
             placeholder: 'Select students',
             allowClear: true,
             closeOnSelect: false,
@@ -971,10 +971,10 @@ $(document).ready(function() {
                 noResults: function() {
                     return 'No students found';
                 }
-            }
-        });
-    }
-});
+                        }
+                    });
+                }
+            });
 </script>
 
 <style>

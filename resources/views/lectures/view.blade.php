@@ -218,13 +218,23 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-0">
-                <iframe src="{{ $fileInfo['pdf']['url'] }}#toolbar=0" class="w-100" style="height: 70vh;"></iframe>
+                <div class="embed-responsive" style="height: 70vh;">
+                    <object data="{{ $fileInfo['pdf']['url'] }}" type="application/pdf" width="100%" height="100%">
+                        <p>It appears you don't have a PDF plugin for this browser. 
+                        You can <a href="{{ $fileInfo['pdf']['url'] }}" target="_blank">click here to download the PDF file.</a></p>
+                    </object>
+                </div>
             </div>
             <div class="modal-footer justify-content-between">
                 <small class="text-muted">{{ $fileInfo['pdf']['size'] }}</small>
-                <a href="{{ $fileInfo['pdf']['download_url'] }}" class="btn btn-primary btn-sm">
-                    <i class="fas fa-download me-1"></i> Download PDF
-                </a>
+                <div class="btn-group">
+                    <a href="{{ $fileInfo['pdf']['url'] }}" target="_blank" class="btn btn-primary btn-sm">
+                        <i class="fas fa-external-link-alt me-1"></i> Open in New Tab
+                    </a>
+                    <a href="{{ $fileInfo['pdf']['download_url'] }}" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-download me-1"></i> Download
+                    </a>
+                </div>
             </div>
         </div>
     </div>
@@ -278,6 +288,23 @@
     .modal-content {
         border-radius: 0.75rem;
         overflow: hidden;
+    }
+    
+    .embed-responsive {
+        position: relative;
+        display: block;
+        width: 100%;
+        padding: 0;
+        overflow: hidden;
+    }
+    
+    .embed-responsive object {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        border: 0;
     }
     
     @media (max-width: 767.98px) {

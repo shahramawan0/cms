@@ -17,6 +17,7 @@ class Classes extends Model
         'name',
         'status',
         'description',
+        'background_color',
     ];
 
     /**

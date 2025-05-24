@@ -163,13 +163,14 @@ Route::middleware(['auth'])->group(function () {
     
 
 });
-Route::group(['middleware' => ['auth']], function() {
-    // Teacher Course Assignments
-    Route::get('teacher/enrollments', [TeacherCourseEnrollController::class, 'index'])->name('teacher.enrollments.index');
-    Route::get('teacher/enrollments/data', [TeacherCourseEnrollController::class, 'getEnrollments'])->name('teacher.enrollments.data');
-    Route::get('teacher/enrollments/session-data', [TeacherCourseEnrollController::class, 'getSessionData'])->name('teacher.enrollments.session-data');
-    Route::post('teacher/enrollments', [TeacherCourseEnrollController::class, 'store'])->name('teacher.enrollments.store');
-    Route::post('teacher/enrollments/unassign', [TeacherCourseEnrollController::class, 'unassignTeacher'])->name('teacher.enrollments.unassign');
+Route::prefix('teacher/enrollments')->name('teacher.enrollments.')->group(function () {
+    Route::get('/', [TeacherCourseEnrollController::class, 'index'])->name('index');
+    Route::get('/form', [TeacherCourseEnrollController::class, 'form'])->name('form');
+    Route::get('/session-data', [TeacherCourseEnrollController::class, 'getSessionData'])->name('session-data');
+    Route::get('/assigned-data', [TeacherCourseEnrollController::class, 'getAssignedData'])->name('assigned-data');
+    Route::post('/store', [TeacherCourseEnrollController::class, 'store'])->name('store');
+    Route::post('/update', [TeacherCourseEnrollController::class, 'update'])->name('update');
+    Route::post('/unassign', [TeacherCourseEnrollController::class, 'unassignTeacher'])->name('unassign');
 });
 Route::group(['middleware' => ['auth']], function() {
     // Session Routes
@@ -283,3 +284,17 @@ Route::group(['middleware' => ['auth']], function() {
 // Route::get('/EnrollCourse', function () {
 //     return view('enrollments.teacherCourseEnrollment.index');
 // });
+
+// Lecture Management Routes
+Route::middleware(['auth'])->group(function () {
+    Route::get('/lectures', [LectureController::class, 'index'])->name('lectures.index');
+    Route::get('/lectures/get-courses', [LectureController::class, 'getCourses'])->name('lectures.get-courses');
+    Route::get('/lectures/get-time-slots', [LectureController::class, 'getTimeSlots'])->name('lectures.get-time-slots');
+    Route::post('/lectures/store', [LectureController::class, 'store'])->name('lectures.store');
+    Route::get('/lectures/dropdowns', [LectureController::class, 'getDropdowns'])->name('lectures.dropdowns');
+    Route::get('/lectures/edit/{id}', [LectureController::class, 'edit'])->name('lectures.edit');
+    Route::put('/lectures/update/{id}', [LectureController::class, 'update'])->name('lectures.update');
+    Route::delete('/lectures/delete/{id}', [LectureController::class, 'destroy'])->name('lectures.delete');
+    Route::get('/lectures/view/{id}', [LectureController::class, 'view'])->name('lectures.view');
+    Route::get('/lectures/download/{id}/{type}', [LectureController::class, 'download'])->name('lectures.download');
+});

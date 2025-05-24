@@ -10,170 +10,140 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
-use Spatie\Permission\Models\Role;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\Traits\HasRoles;
 use Illuminate\Support\Str;
+use App\Models\TimeTable;
 
 class LectureController extends Controller
 {
+    use HasRoles;
+
     public function index()
     {
         $user = auth()->user();
         $institutes = $user->hasRole('Super Admin') ? Institute::get() : null;
 
+        // For students, get their current session automatically
+        if ($user->hasRole('Student')) {
+            $currentEnrollment = StudentEnrollment::where('student_id', $user->id)
+                ->where('status', 'active')
+                ->orderBy('created_at', 'desc')
+                ->first();
+
+            if ($currentEnrollment) {
+                $currentSession = [
+                    'id' => $currentEnrollment->session_id,
+                    'name' => $currentEnrollment->session->session_name
+                ];
+                return view('lectures.index', compact('institutes', 'currentSession'));
+            }
+        }
+
         return view('lectures.index', compact('institutes'));
     }
 
     public function getDropdowns(Request $request)
-{
-    try {
-        $data = [];
-        $user = auth()->user();
+    {
+        try {
+            $data = [];
+            $user = Auth::user();
+            $instituteId = $user->hasRole('Super Admin') ? $request->institute_id : $user->institute_id;
 
-        $instituteId = $user->hasRole('Super Admin') ? $request->institute_id : $user->institute_id;
-
-        if (!$instituteId) {
-            return response()->json(['error' => 'Institute not specified'], 400);
-        }
-
-        // If the user is a Student, we'll filter by their enrollments
-        $studentId = $user->hasRole('Student') ? $user->id : $request->student_id;
-
-        // Sessions
-        $sessionQuery = StudentEnrollment::with('session')
-            ->where('institute_id', $instituteId);
-
-        if ($user->hasRole('Teacher')) {
-            $sessionQuery->where('teacher_id', $user->id);
-        } elseif ($user->hasRole('Student') || $request->has('student_id')) {
-            $sessionQuery->where('student_id', $studentId);
-        }
-
-        $data['sessions'] = $sessionQuery->select('session_id')
-            ->distinct()
-            ->get()
-            ->pluck('session')
-            ->filter()
-            ->map(fn($session) => [
-                'id' => $session->id,
-                'session_name' => $session->session_name
-            ])
-            ->values();
-
-        // Classes
-        if ($request->has('session_id')) {
-            $classQuery = StudentEnrollment::with('class')
-                ->where('institute_id', $instituteId)
-                ->where('session_id', $request->session_id);
-
-            if ($user->hasRole('Teacher')) {
-                $classQuery->where('teacher_id', $user->id);
-            } elseif ($user->hasRole('Student') || $request->has('student_id')) {
-                $classQuery->where('student_id', $studentId);
+            if (!$instituteId) {
+                return response()->json(['error' => 'Institute not specified'], 400);
             }
 
-            $data['classes'] = $classQuery->select('class_id')
-                ->distinct()
-                ->get()
-                ->pluck('class')
-                ->filter()
-                ->map(fn($class) => [
-                    'id' => $class->id,
-                    'name' => $class->name
-                ])
-                ->values();
-        }
+            // Get all sessions for the institute
+            $sessionQuery = DB::table('sessions')
+                ->join('student_enrollments', 'sessions.id', '=', 'student_enrollments.session_id')
+                ->where('student_enrollments.institute_id', $instituteId)
+                ->select('sessions.id', 'sessions.session_name', 'sessions.start_date', 'sessions.end_date')
+                ->distinct();
 
-        // Sections
-        if ($request->has('class_id')) {
-            $sectionQuery = StudentEnrollment::with('section')
-                ->where('institute_id', $instituteId)
-                ->where('session_id', $request->session_id)
-                ->where('class_id', $request->class_id);
-
+            // Apply role-based filters
             if ($user->hasRole('Teacher')) {
-                $sectionQuery->where('teacher_id', $user->id);
-            } elseif ($user->hasRole('Student') || $request->has('student_id')) {
-                $sectionQuery->where('student_id', $studentId);
+                $sessionQuery->where('student_enrollments.teacher_id', $user->id);
+            } elseif ($user->hasRole('Student')) {
+                $sessionQuery->where('student_enrollments.student_id', $user->id);
             }
 
-            $data['sections'] = $sectionQuery->select('section_id')
-                ->distinct()
-                ->get()
-                ->pluck('section')
-                ->filter()
-                ->map(fn($section) => [
-                    'id' => $section->id,
-                    'section_name' => $section->section_name
-                ])
-                ->values();
-        }
-
-        // Courses
-        if ($request->has('section_id')) {
-            $courseQuery = StudentEnrollment::with('course')
-                ->where('institute_id', $instituteId)
-                ->where('session_id', $request->session_id)
-                ->where('class_id', $request->class_id)
-                ->where('section_id', $request->section_id);
-
-            if ($user->hasRole('Teacher')) {
-                $courseQuery->where('teacher_id', $user->id);
-            } elseif ($user->hasRole('Student') || $request->has('student_id')) {
-                $courseQuery->where('student_id', $studentId);
-            }
-
-            $data['courses'] = $courseQuery->select('course_id')
-                ->distinct()
-                ->get()
-                ->pluck('course')
-                ->filter()
-                ->map(fn($course) => [
-                    'id' => $course->id,
-                    'course_name' => $course->course_name
-                ])
-                ->values();
-        }
-
-        // Teachers
-        if ($request->has('course_id')) {
-            $teacherQuery = TeacherEnrollment::with('teacher')
-                ->where('institute_id', $instituteId)
-                ->where('session_id', $request->session_id)
-                ->where('class_id', $request->class_id)
-                ->where('section_id', $request->section_id)
-                ->where('course_id', $request->course_id);
-
-            if ($user->hasRole('Teacher')) {
-                $teacherQuery->where('teacher_id', $user->id);
-            } elseif ($user->hasRole('Student') || $request->has('student_id')) {
-                // For students, we need to get teachers for their enrolled courses
-                $teacherQuery->whereHas('studentEnrollments', function($q) use ($studentId) {
-                    $q->where('student_id', $studentId);
+            $data['sessions'] = $sessionQuery->get()
+                ->map(function($session) {
+                    return [
+                        'id' => $session->id,
+                        'session_name' => $session->session_name,
+                        'start_date' => $session->start_date ? date('Y-m-d', strtotime($session->start_date)) : null,
+                        'end_date' => $session->end_date ? date('Y-m-d', strtotime($session->end_date)) : null
+                    ];
                 });
+
+            // Get classes if session_id is provided
+            if ($request->has('session_id')) {
+                $classQuery = DB::table('classes')
+                    ->join('student_enrollments', 'classes.id', '=', 'student_enrollments.class_id')
+                    ->where('student_enrollments.institute_id', $instituteId)
+                    ->where('student_enrollments.session_id', $request->session_id)
+                    ->select('classes.id', 'classes.name')
+                    ->distinct();
+
+                if ($user->hasRole('Teacher')) {
+                    $classQuery->where('student_enrollments.teacher_id', $user->id);
+                } elseif ($user->hasRole('Student')) {
+                    $classQuery->where('student_enrollments.student_id', $user->id);
+                }
+
+                $data['classes'] = $classQuery->get();
             }
 
-            $data['teachers'] = $teacherQuery->select('teacher_id')
-                ->distinct()
-                ->get()
-                ->pluck('teacher')
-                ->filter()
-                ->map(fn($teacher) => [
-                    'id' => $teacher->id,
-                    'name' => $teacher->name
-                ])
-                ->values();
-        }
+            // Get sections if class_id is provided
+            if ($request->has('class_id')) {
+                $sectionQuery = DB::table('sections')
+                    ->join('student_enrollments', 'sections.id', '=', 'student_enrollments.section_id')
+                    ->where('student_enrollments.institute_id', $instituteId)
+                    ->where('student_enrollments.class_id', $request->class_id)
+                    ->select('sections.id', 'sections.section_name')
+                    ->distinct();
 
-        return response()->json($data);
-    } catch (\Exception $e) {
-        \Log::error("Error in getDropdowns: " . $e->getMessage());
-        return response()->json([
-            'error' => 'Failed to load dropdown data',
-            'message' => $e->getMessage()
-        ], 500);
+                if ($user->hasRole('Teacher')) {
+                    $sectionQuery->where('student_enrollments.teacher_id', $user->id);
+                } elseif ($user->hasRole('Student')) {
+                    $sectionQuery->where('student_enrollments.student_id', $user->id);
+                }
+
+                $data['sections'] = $sectionQuery->get();
+            }
+
+            // Get courses if section_id is provided
+            if ($request->has('section_id')) {
+                $courseQuery = DB::table('courses')
+                    ->join('student_enrollments', 'courses.id', '=', 'student_enrollments.course_id')
+                    ->where('student_enrollments.institute_id', $instituteId)
+                    ->where('student_enrollments.class_id', $request->class_id)
+                    ->where('student_enrollments.section_id', $request->section_id)
+                    ->select('courses.id', 'courses.course_name')
+                    ->distinct();
+
+                if ($user->hasRole('Teacher')) {
+                    $courseQuery->where('student_enrollments.teacher_id', $user->id);
+                } elseif ($user->hasRole('Student')) {
+                    $courseQuery->where('student_enrollments.student_id', $user->id);
+                }
+
+                $data['courses'] = $courseQuery->get();
+            }
+
+            return response()->json($data);
+        } catch (\Exception $e) {
+            Log::error("Error in getDropdowns: " . $e->getMessage());
+            return response()->json([
+                'error' => 'Failed to load dropdown data',
+                'message' => $e->getMessage()
+            ], 500);
+        }
     }
-}
 
     public function getTeachers(Request $request)
     {
@@ -216,88 +186,93 @@ class LectureController extends Controller
         }
     }
 
-
     public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'title' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'teacher_id' => 'required|exists:users,id',
-            'institute_id' => 'required|exists:institutes,id',
-            'session_id' => 'required|exists:sessions,id',
-            'class_id' => 'required|exists:classes,id',
-            'section_id' => 'required|exists:sections,id',
-            'course_id' => 'required|exists:courses,id',
-            'lecture_date' => 'required|date',
-            'status' => 'required|in:active,inactive',
-            'video' => 'required_without:pdf|file|mimes:mp4|max:51200',
-            'pdf' => 'required_without:video|file|mimes:pdf|max:10240'
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors()
-            ], 422);
-        }
-
-        DB::beginTransaction();
-
         try {
-            // Verify the teacher is actually enrolled in this course/section
-            $isTeacherEnrolled = StudentEnrollment::where([
-                'teacher_id' => $request->teacher_id,
+            $request->validate([
+                'institute_id' => 'required|exists:institutes,id',
+                'session_id' => 'required|exists:sessions,id',
+                'class_id' => 'required|exists:classes,id',
+                'section_id' => 'required|exists:sections,id',
+                'course_id' => 'required|exists:courses,id',
+                'teacher_id' => 'required|exists:users,id',
+                'title' => 'required|string|max:255',
+                'description' => 'nullable|string',
+                'lecture_file' => 'required|file|max:10240', // 10MB max
+                'video_file' => 'nullable|file|mimes:mp4,webm|max:512000', // 500MB max
+                'slot_date' => 'required|date',
+                'slot_time' => 'required|string'
+            ]);
+
+            $user = auth()->user();
+            
+            // Check if a lecture already exists for this slot
+            $existingLecture = Lecture::where([
+                'course_id' => $request->course_id,
+                'class_id' => $request->class_id,
+                'section_id' => $request->section_id,
+                'slot_date' => $request->slot_date,
+                'slot_time' => $request->slot_time
+            ])->first();
+
+            if ($existingLecture) {
+                return response()->json([
+                    'error' => 'A lecture already exists for this time slot',
+                    'message' => 'This time slot already has a lecture uploaded.'
+                ], 422);
+            }
+
+            // Handle file uploads
+            $filePaths = [];
+            
+            // Handle lecture file (PDF/DOC)
+            if ($request->hasFile('lecture_file')) {
+                $file = $request->file('lecture_file');
+                $fileName = time() . '_' . Str::slug($request->title) . '.' . $file->getClientOriginalExtension();
+                $filePaths['pdf_path'] = $file->storeAs('lectures/documents', $fileName, 'public');
+            }
+
+            // Handle video file if present
+            if ($request->hasFile('video_file')) {
+                $video = $request->file('video_file');
+                $videoName = time() . '_' . Str::slug($request->title) . '_video.' . $video->getClientOriginalExtension();
+                $filePaths['video_path'] = $video->storeAs('lectures/videos', $videoName, 'public');
+            }
+
+            // Create lecture record
+            $lecture = new Lecture([
+                'title' => $request->title,
+                'description' => $request->description,
+                'pdf_path' => $filePaths['pdf_path'] ?? null,
+                'video_path' => $filePaths['video_path'] ?? null,
+                'slot_date' => $request->slot_date,
+                'slot_time' => $request->slot_time,
+                'lecture_date' => $request->slot_date,
+                'status' => 'active',
                 'institute_id' => $request->institute_id,
                 'session_id' => $request->session_id,
                 'class_id' => $request->class_id,
                 'section_id' => $request->section_id,
-                'course_id' => $request->course_id
-            ])->exists();
+                'course_id' => $request->course_id,
+                'teacher_id' => $request->teacher_id,
+                'uploaded_by' => $user->id
+            ]);
 
-            if (!$isTeacherEnrolled) {
-                throw new \Exception('The selected teacher is not enrolled in this course/section');
-            }
-
-            $lecture = new Lecture();
-            $lecture->fill($request->only([
-                'title',
-                'description',
-                'teacher_id',
-                'institute_id',
-                'session_id',
-                'class_id',
-                'section_id',
-                'course_id',
-                'lecture_date',
-                'status'
-            ]));
-
-            // Handle file uploads
-            if ($request->hasFile('video')) {
-                $videoPath = $request->file('video')->store('lectures/videos', 'public');
-                $lecture->video_path = $videoPath;
-            }
-
-            if ($request->hasFile('pdf')) {
-                $pdfPath = $request->file('pdf')->store('lectures/pdfs', 'public');
-                $lecture->pdf_path = $pdfPath;
-            }
-
-            $lecture->created_by = Auth::id();
             $lecture->save();
-
-            DB::commit();
 
             return response()->json([
                 'success' => true,
-                'message' => 'Lecture created successfully!',
+                'message' => 'Lecture uploaded successfully',
                 'lecture' => $lecture
             ]);
+
         } catch (\Exception $e) {
-            DB::rollBack();
+            \Log::error('Error in lecture store: ' . $e->getMessage());
+            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            
             return response()->json([
-                'success' => false,
-                'message' => 'Error creating lecture: ' . $e->getMessage()
+                'error' => 'Failed to upload lecture',
+                'message' => $e->getMessage()
             ], 500);
         }
     }
@@ -469,35 +444,35 @@ class LectureController extends Controller
     }
 
     public function download($id, $type)
-{
-    $lecture = Lecture::findOrFail($id);
-    
-    // Check permissions
-    if (auth()->user()->hasRole('Student')) {
-        $enrollment = StudentEnrollment::where('student_id', auth()->id())
-            ->where('course_id', $lecture->course_id)
-            ->exists();
+    {
+        $lecture = Lecture::findOrFail($id);
+        
+        // Check permissions
+        if (auth()->user()->hasRole('Student')) {
+            $enrollment = StudentEnrollment::where('student_id', auth()->id())
+                ->where('course_id', $lecture->course_id)
+                ->exists();
             
-        if (!$enrollment) {
-            abort(403, 'You are not enrolled in this course');
+            if (!$enrollment) {
+                abort(403, 'You are not enrolled in this course');
+            }
         }
+
+        $filePath = null;
+        $fileName = '';
+
+        if ($type === 'video' && $lecture->video_path) {
+            $filePath = storage_path('app/public/' . $lecture->video_path);
+            $fileName = \Illuminate\Support\Str::slug($lecture->title) . '.mp4';
+        } elseif ($type === 'pdf' && $lecture->pdf_path) {
+            $filePath = storage_path('app/public/' . $lecture->pdf_path);
+            $fileName = \Illuminate\Support\Str::slug($lecture->title) . '.pdf';
+        } else {
+            abort(404);
+        }
+
+        return response()->download($filePath, $fileName);
     }
-
-    $filePath = null;
-    $fileName = '';
-
-    if ($type === 'video' && $lecture->video_path) {
-        $filePath = storage_path('app/public/' . $lecture->video_path);
-        $fileName = \Illuminate\Support\Str::slug($lecture->title) . '.mp4';
-    } elseif ($type === 'pdf' && $lecture->pdf_path) {
-        $filePath = storage_path('app/public/' . $lecture->pdf_path);
-        $fileName = \Illuminate\Support\Str::slug($lecture->title) . '.pdf';
-    } else {
-        abort(404);
-    }
-
-    return response()->download($filePath, $fileName);
-}
 
     private function formatFileSize($bytes)
     {
@@ -536,106 +511,58 @@ class LectureController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage()
-            ], 404);
+                'message' => 'An error occurred while loading the lecture'
+            ], 500);
         }
     }
 
     public function update(Request $request, $id)
     {
-        $validator = Validator::make($request->all(), [
-            'title' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'teacher_id' => 'required|exists:users,id',
-            'institute_id' => 'required|exists:institutes,id',
-            'session_id' => 'required|exists:sessions,id',
-            'class_id' => 'required|exists:classes,id',
-            'section_id' => 'required|exists:sections,id',
-            'course_id' => 'required|exists:courses,id',
-            'lecture_date' => 'required|date',
-            'status' => 'required|in:active,inactive',
-            'video' => 'nullable|file|mimes:mp4|max:51200',
-            'pdf' => 'nullable|file|mimes:pdf|max:10240'
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors()
-            ], 422);
-        }
-
-        DB::beginTransaction();
-
         try {
             $lecture = Lecture::findOrFail($id);
 
-            // Check permissions
-            if (auth()->user()->hasRole('Teacher') && auth()->user()->id !== $lecture->teacher_id) {
-                throw new \Exception('You are not authorized to update this lecture');
-            }
+            // Update basic lecture information
+            $lecture->title = $request->title;
+            $lecture->description = $request->description;
+            $lecture->slot_date = $request->slot_date;
+            $lecture->slot_time = $request->slot_time;
+            $lecture->lecture_date = $request->slot_date;
+            $lecture->status = 'active';
 
-            // Verify the teacher is actually enrolled in this course/section
-            $isTeacherEnrolled = StudentEnrollment::where([
-                'teacher_id' => $request->teacher_id,
-                'institute_id' => $request->institute_id,
-                'session_id' => $request->session_id,
-                'class_id' => $request->class_id,
-                'section_id' => $request->section_id,
-                'course_id' => $request->course_id
-            ])->exists();
-
-            if (!$isTeacherEnrolled) {
-                throw new \Exception('The selected teacher is not enrolled in this course/section');
-            }
-
-            $lecture->fill($request->only([
-                'title',
-                'description',
-                'teacher_id',
-                'institute_id',
-                'session_id',
-                'class_id',
-                'section_id',
-                'course_id',
-                'lecture_date',
-                'status'
-            ]));
-
-            // Handle file uploads
-            if ($request->hasFile('video')) {
+            // Handle video file upload if present
+            if ($request->hasFile('video_file')) {
                 // Delete old video if exists
                 if ($lecture->video_path) {
                     Storage::disk('public')->delete($lecture->video_path);
                 }
-                $videoPath = $request->file('video')->store('lectures/videos', 'public');
-                $lecture->video_path = $videoPath;
+                $video = $request->file('video_file');
+                $videoName = time() . '_' . Str::slug($request->title) . '_video.' . $video->getClientOriginalExtension();
+                $lecture->video_path = $video->storeAs('lectures/videos', $videoName, 'public');
             }
 
-            if ($request->hasFile('pdf')) {
-                // Delete old pdf if exists
+            // Handle lecture file upload if present
+            if ($request->hasFile('lecture_file')) {
+                // Delete old file if exists
                 if ($lecture->pdf_path) {
                     Storage::disk('public')->delete($lecture->pdf_path);
                 }
-                $pdfPath = $request->file('pdf')->store('lectures/pdfs', 'public');
-                $lecture->pdf_path = $pdfPath;
+                $file = $request->file('lecture_file');
+                $fileName = time() . '_' . Str::slug($request->title) . '.' . $file->getClientOriginalExtension();
+                $lecture->pdf_path = $file->storeAs('lectures/documents', $fileName, 'public');
             }
 
-            $lecture->updated_by = Auth::id();
             $lecture->save();
-
-            DB::commit();
 
             return response()->json([
                 'success' => true,
-                'message' => 'Lecture updated successfully!',
+                'message' => 'Lecture updated successfully',
                 'lecture' => $lecture
             ]);
+
         } catch (\Exception $e) {
-            DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Error updating lecture: ' . $e->getMessage()
+                'message' => 'Failed to update lecture: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -673,6 +600,180 @@ class LectureController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Error deleting lecture: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function getCourses(Request $request)
+    {
+        try {
+            $user = auth()->user();
+            
+            if (!$request->has('session_id')) {
+                return response()->json([], 200); // Return empty array instead of error
+            }
+
+            $instituteId = $user->hasRole('Super Admin') ? $request->institute_id : $user->institute_id;
+            $sessionId = $request->session_id;
+
+            if ($user->hasRole('Super Admin') && !$request->has('institute_id')) {
+                return response()->json([], 200); // Return empty array instead of error
+            }
+
+            $query = StudentEnrollment::with(['course', 'class', 'section', 'teacher'])
+                ->where('institute_id', $instituteId)
+                ->where('session_id', $sessionId);
+
+            if ($user->hasRole('Teacher')) {
+                $query->where('teacher_id', $user->id);
+            } elseif ($user->hasRole('Student')) {
+                $query->where('student_id', $user->id);
+            }
+
+            $enrollments = $query->get();
+
+            if ($enrollments->isEmpty()) {
+                return response()->json([], 200); // Return empty array instead of error
+            }
+
+            $courses = $enrollments->map(function ($enrollment) {
+                // Check if all relationships are loaded
+                if (!$enrollment->course || !$enrollment->class || !$enrollment->section || !$enrollment->teacher) {
+                    \Log::error('Missing relationship data for enrollment ID: ' . $enrollment->id);
+                    return null;
+                }
+
+                return [
+                    'id' => $enrollment->course->id,
+                    'course_name' => $enrollment->course->course_name,
+                    'class_name' => $enrollment->class->name,
+                    'section_name' => $enrollment->section->section_name,
+                    'teacher_name' => $enrollment->teacher->name,
+                    'class_id' => $enrollment->class_id,
+                    'section_id' => $enrollment->section_id,
+                    'teacher_id' => $enrollment->teacher_id,
+                    'background_color' => $enrollment->class->background_color ?? '#3490dc'
+                ];
+            })->filter()->unique('id')->values();
+
+            return response()->json($courses);
+        } catch (\Exception $e) {
+            \Log::error('Error in getCourses: ' . $e->getMessage());
+            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            return response()->json([], 200); // Return empty array instead of error
+        }
+    }
+
+    public function getTimeSlots(Request $request)
+    {
+        try {
+            $request->validate([
+                'course_id' => 'required|exists:courses,id',
+                'class_id' => 'required|exists:classes,id',
+                'section_id' => 'required|exists:sections,id',
+                'teacher_id' => 'required|exists:users,id'
+            ]);
+
+            $user = auth()->user();
+
+            // Verify student enrollment if user is a student
+            if ($user->hasRole('Student')) {
+                $isEnrolled = StudentEnrollment::where('student_id', $user->id)
+                    ->where('course_id', $request->course_id)
+                    ->where('class_id', $request->class_id)
+                    ->where('section_id', $request->section_id)
+                    ->where('status', 'active')
+                    ->exists();
+
+                if (!$isEnrolled) {
+                    return response()->json(['error' => 'You are not enrolled in this course'], 403);
+                }
+
+                // For students, only get slots that have uploaded lectures
+                $existingLectures = Lecture::where('course_id', $request->course_id)
+                    ->where('class_id', $request->class_id)
+                    ->where('section_id', $request->section_id)
+                    ->get()
+                    ->keyBy(function($lecture) {
+                        return $lecture->slot_date . '_' . $lecture->slot_time;
+                    });
+
+                if ($existingLectures->isEmpty()) {
+                    return response()->json([]);
+                }
+
+                // Get only the slots that have lectures
+                $slots = TimeTable::where('course_id', $request->course_id)
+                    ->where('class_id', $request->class_id)
+                    ->where('section_id', $request->section_id)
+                    ->whereIn(DB::raw("CONCAT(date, '_', slot_times)"), $existingLectures->keys())
+                    ->orderBy('date')
+                    ->orderBy('slot_times')
+                    ->get();
+
+                // Format slots with lecture information
+                $formattedSlots = $slots->map(function ($slot) use ($existingLectures, $request) {
+                    $key = $slot->date . '_' . $slot->slot_times;
+                    $lecture = $existingLectures->get($key);
+                    
+                    return [
+                        'date' => $slot->date,
+                        'slot_times' => $slot->slot_times,
+                        'week' => $slot->week,
+                        'class_id' => $request->class_id,
+                        'section_id' => $request->section_id,
+                        'teacher_id' => $request->teacher_id,
+                        'status' => 'Uploaded',
+                        'lecture_id' => $lecture ? $lecture->id : null
+                    ];
+                });
+
+                return response()->json($formattedSlots);
+            }
+
+            // For non-students, show all slots
+            $slots = TimeTable::where('course_id', $request->course_id)
+                ->where('class_id', $request->class_id)
+                ->where('section_id', $request->section_id)
+                ->orderBy('date')
+                ->orderBy('slot_times')
+                ->get();
+
+            if ($slots->isEmpty()) {
+                return response()->json(['error' => 'No time slots found for this course'], 404);
+            }
+
+            // Check for existing lectures
+            $existingLectures = Lecture::where('course_id', $request->course_id)
+                ->where('class_id', $request->class_id)
+                ->where('section_id', $request->section_id)
+                ->get()
+                ->keyBy(function($lecture) {
+                    return $lecture->slot_date . '_' . $lecture->slot_time;
+                });
+
+            // Format slots with lecture information
+            $formattedSlots = $slots->map(function ($slot) use ($existingLectures, $request) {
+                $key = $slot->date . '_' . $slot->slot_times;
+                $lecture = $existingLectures->get($key);
+                
+                return [
+                    'date' => $slot->date,
+                    'slot_times' => $slot->slot_times,
+                    'week' => $slot->week,
+                    'class_id' => $request->class_id,
+                    'section_id' => $request->section_id,
+                    'teacher_id' => $request->teacher_id,
+                    'status' => $lecture ? 'Uploaded' : 'Available',
+                    'lecture_id' => $lecture ? $lecture->id : null
+                ];
+            });
+
+            return response()->json($formattedSlots);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to load time slots',
+                'message' => $e->getMessage()
             ], 500);
         }
     }

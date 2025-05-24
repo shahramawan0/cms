@@ -26,7 +26,7 @@
                         @csrf
                         <input type="hidden" id="classId" name="id">
                         <div class="row">
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <div class="form-group">
                                     <label for="session_id">Session <span class="text-danger">*</span></label>
                                     <select name="session_id" id="session_id" class="form-control" required>
@@ -40,7 +40,7 @@
                                     <div class="invalid-feedback" id="session_id_error"></div>
                                 </div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <div class="form-group">
                                     <label for="name">Class Name <span class="text-danger">*</span></label>
                                     <input type="text" name="name" id="name" 
@@ -48,7 +48,17 @@
                                     <div class="invalid-feedback" id="name_error"></div>
                                 </div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label for="background_color">Class Color <span class="text-danger">*</span></label>
+                                    <input type="color" name="background_color" id="background_color" 
+                                           class="form-control form-control-color w-100" 
+                                           value="#3490dc" required
+                                           title="Choose a color for the class">
+                                    <div class="invalid-feedback" id="background_color_error"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
                                 <div class="form-group">
                                     <label for="description">Description</label>
                                     <textarea name="description" id="description" 
@@ -71,7 +81,7 @@
                 
                 <!-- Classes Table -->
                 <div class="card-body" style="border-top:1px solid #000">
-                    <table id="classes-table" class="table  table-striped">
+                    <table id="classes-table" class="table table-striped">
                         <thead>
                             <tr>
                                 <th>ID</th>
@@ -116,7 +126,7 @@ $(document).ready(function() {
         columns: [
             { data: 'id', name: 'id' },
             { data: 'session.session_name', name: 'session.session_name' },
-            { data: 'name', name: 'name' },
+            { data: 'name_with_background_color', name: 'name' },
             { data: 'status', name: 'status' },
             { data: 'action', name: 'action', orderable: false, searchable: false }
         ],
@@ -134,6 +144,7 @@ $(document).ready(function() {
     $('#addClassBtn').click(function() {
         $('#classForm')[0].reset();
         $('#classId').val('');
+        $('#background_color').val('#3490dc'); // Reset color to default
         $('#classFormContainer').show();
         $('html, body').animate({
             scrollTop: $('#classFormContainer').offset().top
@@ -148,12 +159,10 @@ $(document).ready(function() {
     $('#classForm').submit(function(e) {
         e.preventDefault();
         
-        // Show loader
         $('#submitBtn').prop('disabled', true);
         $('#submitBtnText').addClass('d-none');
         $('#submitBtnLoader').removeClass('d-none');
         
-        // Clear previous errors
         $('.is-invalid').removeClass('is-invalid');
         $('.invalid-feedback').text('');
         
@@ -161,7 +170,6 @@ $(document).ready(function() {
         let url = "{{ route('classes.store') }}";
         let method = "POST";
         
-        // If updating, change URL and method
         if ($('#classId').val()) {
             url = "{{ url('classes/update') }}/" + $('#classId').val();
             method = "PUT";
@@ -172,21 +180,17 @@ $(document).ready(function() {
             type: method,
             data: formData,
             success: function(response) {
-                // Hide form
                 $('#classFormContainer').hide();
                 
-                // Show success toast
                 Toast.fire({
                     icon: 'success',
                     title: response.message
                 });
                 
-                // Reload table
                 table.ajax.reload(null, false);
             },
             error: function(xhr) {
                 if (xhr.status === 422) {
-                    // Validation errors
                     let errors = xhr.responseJSON.errors;
                     for (let field in errors) {
                         $('#'+field).addClass('is-invalid');
@@ -200,7 +204,6 @@ $(document).ready(function() {
                 }
             },
             complete: function() {
-                // Hide loader
                 $('#submitBtn').prop('disabled', false);
                 $('#submitBtnText').removeClass('d-none');
                 $('#submitBtnLoader').addClass('d-none');
@@ -212,20 +215,18 @@ $(document).ready(function() {
     $(document).on('click', '.edit-btn', function() {
         let classId = $(this).data('id');
         
-        // Show loader on button
         $(this).html('<i class="fas fa-spinner fa-spin"></i> Loading...');
         
         $.ajax({
             url: "{{ url('classes/edit') }}/" + classId,
             type: "GET",
             success: function(response) {
-                // Fill form with data
                 $('#classId').val(response.id);
                 $('#name').val(response.name);
                 $('#session_id').val(response.session_id);
                 $('#description').val(response.description);
+                $('#background_color').val(response.background_color || '#3490dc');
                 
-                // Show form
                 $('#classFormContainer').show();
                 $('html, body').animate({
                     scrollTop: $('#classFormContainer').offset().top
@@ -238,7 +239,6 @@ $(document).ready(function() {
                 });
             },
             complete: function() {
-                // Reset button text
                 $('.edit-btn').html('<i class="fas fa-edit"></i> Edit');
             }
         });
@@ -258,7 +258,6 @@ $(document).ready(function() {
             confirmButtonText: 'Yes, delete it!'
         }).then((result) => {
             if (result.isConfirmed) {
-                // Show loader on button
                 $(this).html('<i class="fas fa-spinner fa-spin"></i> Deleting...');
                 
                 $.ajax({
@@ -281,7 +280,6 @@ $(document).ready(function() {
                         });
                     },
                     complete: function() {
-                        // Reset button text
                         $('.delete-btn').html('<i class="fas fa-trash"></i> Delete');
                     }
                 });
@@ -290,4 +288,15 @@ $(document).ready(function() {
     });
 });
 </script>
+
+<style>
+.form-control-color {
+    height: 38px;
+    padding: 0.375rem;
+}
+
+.color-box {
+    border: 1px solid #dee2e6;
+}
+</style>
 @endpush
