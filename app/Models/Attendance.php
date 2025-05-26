@@ -22,11 +22,13 @@ class Attendance extends Model
         'student_id',
         'slot_times',
         'date',
+        'attendance_date',
         'status',
         'remarks'
     ];
     protected $casts = [
         'date' => 'date',
+        'attendance_date' => 'date',
         'status' => 'boolean'
     ];
 

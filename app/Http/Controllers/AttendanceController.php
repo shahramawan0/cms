@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\DB;
 
 
 
@@ -23,11 +24,10 @@ class AttendanceController extends Controller
         $user = auth()->user();
         $institutes = $user->hasRole('Super Admin') ? Institute::get() : null;
         
-        // Check if there are any attendance records for today
-        $today = now()->format('Y-m-d');
-        $hasAttendanceToday = Attendance::whereDate('date', $today)->exists();
+        // Set timezone to Asia/Karachi
+        date_default_timezone_set('Asia/Karachi');
         
-        return view('attendances.index', compact('institutes', 'hasAttendanceToday'));
+        return view('attendances.new_index', compact('institutes'));
     }
     public function getDropdowns(Request $request)
     {
@@ -61,7 +61,9 @@ class AttendanceController extends Controller
                 ->filter()
                 ->map(fn($session) => [
                     'id' => $session->id,
-                    'session_name' => $session->session_name
+                    'session_name' => $session->session_name,
+                    'start_date' => $session->start_date ? date('Y-m-d', strtotime($session->start_date)) : null,
+                    'end_date' => $session->end_date ? date('Y-m-d', strtotime($session->end_date)) : null
                 ])
                 ->values();
 
@@ -224,136 +226,169 @@ class AttendanceController extends Controller
         }
     }
     public function getStudents(Request $request)
-{
-    try {
-        $validator = Validator::make($request->all(), [
-            'institute_id' => 'required|exists:institutes,id',
-            'session_id' => 'required|exists:sessions,id',
-            'class_id' => 'required|exists:classes,id',
-            'section_id' => 'required|exists:sections,id',
-            'course_id' => 'required|exists:courses,id',
-            'teacher_id' => 'required|exists:users,id',
-            'timetable_id' => 'required|exists:timetables,id',
-            'date' => 'required|date',
-            'slot_times' => 'required|string',
-            'is_update' => 'nullable|boolean' // New field to check if this is an update
-        ]);
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'institute_id' => 'required|exists:institutes,id',
+                'session_id' => 'required|exists:sessions,id',
+                'class_id' => 'required|exists:classes,id',
+                'section_id' => 'required|exists:sections,id',
+                'course_id' => 'required|exists:courses,id',
+                'teacher_id' => 'required|exists:users,id',
+                'timetable_id' => 'required|exists:timetables,id',
+                'date' => 'required|date',
+                'slot_times' => 'required|string',
+                'is_update' => 'nullable|boolean'
+            ]);
 
-        if ($validator->fails()) {
-            return response()->json(['error' => $validator->errors()->first()], 400);
+            if ($validator->fails()) {
+                return response()->json(['error' => $validator->errors()->first()], 400);
+            }
+
+            // Set timezone to Asia/Karachi
+            date_default_timezone_set('Asia/Karachi');
+
+            // Check if timetable exists and matches the selected date
+            $timetable = TimeTable::find($request->timetable_id);
+
+            if (!$timetable) {
+                return response()->json(['error' => 'Timetable not found'], 404);
+            }
+
+            $selectedDate = Carbon::parse($request->date)->format('Y-m-d');
+            $timetableDate = Carbon::parse($timetable->date)->format('Y-m-d');
+
+            if ($timetableDate !== $selectedDate) {
+                return response()->json(['error' => 'Selected date does not match the timetable date'], 400);
+            }
+
+            // Get all students enrolled in this class/section/course
+            $students = StudentEnrollment::with('student')
+                ->where([
+                    'institute_id' => $request->institute_id,
+                    'session_id' => $request->session_id,
+                    'class_id' => $request->class_id,
+                    'section_id' => $request->section_id,
+                    'course_id' => $request->course_id,
+                ])
+                ->get()
+                ->map(function ($enrollment) {
+                    return [
+                        'enrollment_id' => $enrollment->id,
+                        'student_id' => $enrollment->student->id,
+                        'name' => $enrollment->student->name,
+                        'roll_number' => $enrollment->student->roll_number,
+                        'phone' => $enrollment->student->phone,
+                        'email' => $enrollment->student->email,
+                    ];
+                });
+
+            // If this is an update request, get existing attendance status
+            if ($request->is_update) {
+                $existingAttendance = Attendance::where([
+                    'institute_id' => $request->institute_id,
+                    'session_id' => $request->session_id,
+                    'class_id' => $request->class_id,
+                    'section_id' => $request->section_id,
+                    'course_id' => $request->course_id,
+                    'teacher_id' => $request->teacher_id,
+                    'timetable_id' => $request->timetable_id,
+                    'date' => $request->date,
+                    'slot_times' => $request->slot_times,
+                ])->get()->keyBy('student_enrollment_id');
+
+                // Map attendance status to students
+                $students = $students->map(function ($student) use ($existingAttendance) {
+                    $student['status'] = isset($existingAttendance[$student['enrollment_id']]) 
+                        ? $existingAttendance[$student['enrollment_id']]->status 
+                        : 1; // Default to present if no record exists
+                    return $student;
+                });
+            }
+
+            return response()->json(['students' => $students, 'is_update' => $request->is_update]);
+        } catch (\Exception $e) {
+            \Log::error("Error in getStudents: " . $e->getMessage());
+            return response()->json(['error' => $e->getMessage()], 500);
         }
-
-        // Check if timetable exists and matches the selected date
-        $timetable = TimeTable::find($request->timetable_id);
-
-        if (!$timetable) {
-            return response()->json(['error' => 'Timetable not found'], 404);
-        }
-
-        $selectedDate = Carbon::parse($request->date)->format('Y-m-d');
-        $timetableDate = Carbon::parse($timetable->date)->format('Y-m-d');
-
-        if ($timetableDate !== $selectedDate) {
-            return response()->json(['error' => 'Selected date does not match the timetable date'], 400);
-        }
-
-        // Get all students enrolled in this class/section/course
-        $students = StudentEnrollment::with('student')
-            ->where([
-                'institute_id' => $request->institute_id,
-                'session_id' => $request->session_id,
-                'class_id' => $request->class_id,
-                'section_id' => $request->section_id,
-                'course_id' => $request->course_id,
-            ])
-            ->get()
-            ->map(function ($enrollment) {
-                return [
-                    'enrollment_id' => $enrollment->id,
-                    'student_id' => $enrollment->student->id,
-                    'name' => $enrollment->student->name,
-                    'cnic' => $enrollment->student->cnic,
-                    'phone' => $enrollment->student->phone,
-                    'email' => $enrollment->student->email,
-                ];
-            });
-
-        // If this is an update request, get existing attendance status
-        if ($request->is_update) {
-            $existingAttendance = Attendance::where([
-                'institute_id' => $request->institute_id,
-                'session_id' => $request->session_id,
-                'class_id' => $request->class_id,
-                'section_id' => $request->section_id,
-                'course_id' => $request->course_id,
-                'teacher_id' => $request->teacher_id,
-                'timetable_id' => $request->timetable_id,
-                'date' => $request->date,
-                'slot_times' => $request->slot_times,
-            ])->get()->keyBy('student_enrollment_id');
-
-            // Map attendance status to students
-            $students = $students->map(function ($student) use ($existingAttendance) {
-                $student['status'] = isset($existingAttendance[$student['enrollment_id']]) 
-                    ? $existingAttendance[$student['enrollment_id']]->status 
-                    : 1; // Default to present if no record exists
-                return $student;
-            });
-        }
-
-        return response()->json(['students' => $students, 'is_update' => $request->is_update]);
-    } catch (\Exception $e) {
-        \Log::error("Error in getStudents: " . $e->getMessage());
-        return response()->json(['error' => $e->getMessage()], 500);
     }
-}
 
-public function markAttendance(Request $request)
-{
-    try {
-        $validator = Validator::make($request->all(), [
-            'institute_id' => 'required|exists:institutes,id',
-            'session_id' => 'required|exists:sessions,id',
-            'class_id' => 'required|exists:classes,id',
-            'section_id' => 'required|exists:sections,id',
-            'course_id' => 'required|exists:courses,id',
-            'teacher_id' => 'required|exists:users,id',
-            'timetable_id' => 'required|exists:timetables,id',
-            'date' => 'required|date',
-            'slot_times' => 'required|string',
-            'attendances' => 'required|array',
-            'attendances.*.student_enrollment_id' => 'required|exists:student_enrollments,id',
-            'attendances.*.student_id' => 'required|exists:users,id',
-            'attendances.*.status' => 'required|in:0,1,true,false',
-            'is_update' => 'nullable|boolean'
-        ]);
+    public function markAttendance(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'institute_id' => 'required|exists:institutes,id',
+                'session_id' => 'required|exists:sessions,id',
+                'class_id' => 'required|exists:classes,id',
+                'section_id' => 'required|exists:sections,id',
+                'course_id' => 'required|exists:courses,id',
+                'teacher_id' => 'required|exists:users,id',
+                'timetable_id' => 'required|exists:timetables,id',
+                'date' => 'required|date',
+                'slot_times' => 'required|string',
+                'attendances' => 'required|array',
+                'attendances.*.student_enrollment_id' => 'required|exists:student_enrollments,id',
+                'attendances.*.student_id' => 'required|exists:users,id',
+                'attendances.*.status' => 'required|in:0,1,true,false',
+                'is_update' => 'nullable|boolean'
+            ]);
 
-        if ($validator->fails()) {
-            return response()->json(['error' => $validator->errors()->first()], 400);
-        }
+            if ($validator->fails()) {
+                return response()->json(['error' => $validator->errors()->first()], 400);
+            }
 
-        // Check if timetable exists and matches the selected date
-        $timetable = TimeTable::find($request->timetable_id);
+            // Set timezone to Asia/Karachi
+            date_default_timezone_set('Asia/Karachi');
 
-        if (!$timetable) {
-            return response()->json(['error' => 'Timetable not found'], 404);
-        }
+            // Check if timetable exists and matches the selected date
+            $timetable = TimeTable::find($request->timetable_id);
 
-        $selectedDate = Carbon::parse($request->date)->format('Y-m-d');
-        $timetableDate = Carbon::parse($timetable->date)->format('Y-m-d');
+            if (!$timetable) {
+                return response()->json(['error' => 'Timetable not found'], 404);
+            }
 
-        if ($timetableDate !== $selectedDate) {
-            return response()->json(['error' => 'Selected date does not match the timetable date'], 400);
-        }
+            $selectedDate = Carbon::parse($request->date)->format('Y-m-d');
+            $timetableDate = Carbon::parse($timetable->date)->format('Y-m-d');
 
-        // Get authenticated user ID
-        $createdBy = auth()->id();
+            if ($timetableDate !== $selectedDate) {
+                return response()->json(['error' => 'Selected date does not match the timetable date'], 400);
+            }
 
-        if ($request->is_update) {
-            // Update existing attendance records
-            foreach ($request->attendances as $attendance) {
-                Attendance::updateOrCreate(
-                    [
+            // Check if today's date matches the selected date for editing
+            $today = Carbon::now()->format('Y-m-d');
+            if ($request->boolean('is_update') && $selectedDate !== $today) {
+                return response()->json(['error' => 'Attendance can only be edited on the same day'], 403);
+            }
+
+            // Get authenticated user ID
+            $createdBy = auth()->id();
+
+            // Begin transaction
+            DB::beginTransaction();
+
+            try {
+                // Check if attendance exists
+                $existingAttendance = Attendance::where([
+                    'institute_id' => $request->institute_id,
+                    'session_id' => $request->session_id,
+                    'class_id' => $request->class_id,
+                    'section_id' => $request->section_id,
+                    'course_id' => $request->course_id,
+                    'teacher_id' => $request->teacher_id,
+                    'timetable_id' => $request->timetable_id,
+                    'date' => $request->date,
+                    'slot_times' => $request->slot_times,
+                ])->exists();
+
+                // Only check for existing attendance if this is a new entry
+                if (!$request->boolean('is_update') && $existingAttendance) {
+                    DB::rollBack();
+                    return response()->json(['error' => 'Attendance already marked for this class, date and time slot'], 400);
+                }
+
+                // Process each attendance record
+                foreach ($request->attendances as $attendance) {
+                    $attendanceData = [
                         'institute_id' => $request->institute_id,
                         'session_id' => $request->session_id,
                         'class_id' => $request->class_id,
@@ -362,68 +397,57 @@ public function markAttendance(Request $request)
                         'teacher_id' => $request->teacher_id,
                         'timetable_id' => $request->timetable_id,
                         'student_enrollment_id' => $attendance['student_enrollment_id'],
+                        'student_id' => $attendance['student_id'],
                         'date' => $request->date,
                         'slot_times' => $request->slot_times,
-                    ],
-                    [
-                        'student_id' => $attendance['student_id'],
                         'status' => $attendance['status'],
                         'updated_by' => $createdBy,
                         'updated_at' => now(),
-                    ]
-                );
-            }
-            
-            return response()->json(['message' => 'Attendance updated successfully']);
-        } else {
-            // Check if attendance already marked for this combination including slot_times
-            $existingAttendance = Attendance::where([
-                'institute_id' => $request->institute_id,
-                'session_id' => $request->session_id,
-                'class_id' => $request->class_id,
-                'section_id' => $request->section_id,
-                'course_id' => $request->course_id,
-                'teacher_id' => $request->teacher_id,
-                'timetable_id' => $request->timetable_id,
-                'date' => $request->date,
-                'slot_times' => $request->slot_times,
-            ])->exists();
+                    ];
 
-            if ($existingAttendance) {
-                return response()->json(['error' => 'Attendance already marked for this class, date and time slot'], 400);
-            }
+                    // If it's a new record, add created_by and created_at
+                    if (!$request->boolean('is_update')) {
+                        $attendanceData['created_by'] = $createdBy;
+                        $attendanceData['created_at'] = now();
+                    }
 
-            // Create new attendance records
-            $attendanceRecords = [];
-            foreach ($request->attendances as $attendance) {
-                $attendanceRecords[] = [
-                    'institute_id' => $request->institute_id,
-                    'session_id' => $request->session_id,
-                    'class_id' => $request->class_id,
-                    'section_id' => $request->section_id,
-                    'course_id' => $request->course_id,
-                    'teacher_id' => $request->teacher_id,
-                    'timetable_id' => $request->timetable_id,
-                    'student_enrollment_id' => $attendance['student_enrollment_id'],
-                    'student_id' => $attendance['student_id'],
-                    'date' => $request->date,
-                    'slot_times' => $request->slot_times,
-                    'status' => $attendance['status'],
-                    'created_by' => $createdBy,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ];
+                    // Update or create the attendance record
+                    Attendance::updateOrCreate(
+                        [
+                            'institute_id' => $request->institute_id,
+                            'session_id' => $request->session_id,
+                            'class_id' => $request->class_id,
+                            'section_id' => $request->section_id,
+                            'course_id' => $request->course_id,
+                            'teacher_id' => $request->teacher_id,
+                            'timetable_id' => $request->timetable_id,
+                            'student_enrollment_id' => $attendance['student_enrollment_id'],
+                            'date' => $request->date,
+                            'slot_times' => $request->slot_times,
+                        ],
+                        array_merge($attendanceData, [
+                            'attendance_date' => now()->format('Y-m-d')
+                        ])
+                    );
+                }
+
+                DB::commit();
+
+                return response()->json([
+                    'message' => $request->boolean('is_update') ? 'Attendance updated successfully' : 'Attendance marked successfully',
+                    'status' => 'success'
+                ]);
+
+            } catch (\Exception $e) {
+                DB::rollBack();
+                throw $e;
             }
 
-            Attendance::insert($attendanceRecords);
-
-            return response()->json(['message' => 'Attendance marked successfully']);
+        } catch (\Exception $e) {
+            \Log::error("Error in markAttendance: " . $e->getMessage());
+            return response()->json(['error' => 'Failed to mark attendance'], 500);
         }
-    } catch (\Exception $e) {
-        \Log::error("Error in markAttendance: " . $e->getMessage());
-        return response()->json(['error' => 'Failed to mark attendance'], 500);
     }
-}
 
 
 
@@ -512,5 +536,147 @@ public function markAttendance(Request $request)
 
         $pdf = PDF::loadView('attendances.reportPdf', $data);
         return $pdf->download('attendance-report-' . now()->format('Y-m-d') . '.pdf');
+    }
+
+    public function getCourses(Request $request)
+    {
+        try {
+            $user = auth()->user();
+            
+            if (!$request->has('session_id')) {
+                return response()->json([], 200);
+            }
+
+            $instituteId = $user->hasRole('Super Admin') ? $request->institute_id : $user->institute_id;
+            $sessionId = $request->session_id;
+
+            if ($user->hasRole('Super Admin') && !$request->has('institute_id')) {
+                return response()->json([], 200);
+            }
+
+            $query = StudentEnrollment::with(['course', 'class', 'section', 'teacher'])
+                ->where('institute_id', $instituteId)
+                ->where('session_id', $sessionId);
+
+            if ($user->hasRole('Teacher')) {
+                $query->where('teacher_id', $user->id);
+            } elseif ($user->hasRole('Student')) {
+                $query->where('student_id', $user->id);
+            }
+
+            $enrollments = $query->get();
+
+            if ($enrollments->isEmpty()) {
+                return response()->json([], 200);
+            }
+
+            $courses = $enrollments->map(function ($enrollment) {
+                // Check if all relationships are loaded
+                if (!$enrollment->course || !$enrollment->class || !$enrollment->section || !$enrollment->teacher) {
+                    \Log::error('Missing relationship data for enrollment ID: ' . $enrollment->id);
+                    return null;
+                }
+
+                return [
+                    'id' => $enrollment->course->id,
+                    'course_name' => $enrollment->course->course_name,
+                    'class_name' => $enrollment->class->name,
+                    'section_name' => $enrollment->section->section_name,
+                    'teacher_name' => $enrollment->teacher->name,
+                    'class_id' => $enrollment->class_id,
+                    'section_id' => $enrollment->section_id,
+                    'teacher_id' => $enrollment->teacher_id,
+                    'background_color' => $enrollment->class->background_color ?? '#3490dc'
+                ];
+            })->filter()->unique('id')->values();
+
+            return response()->json($courses);
+        } catch (\Exception $e) {
+            \Log::error('Error in getCourses: ' . $e->getMessage());
+            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            return response()->json([], 200);
+        }
+    }
+
+    public function getTimeSlots(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'institute_id' => 'required|exists:institutes,id',
+                'session_id' => 'required|exists:sessions,id',
+                'class_id' => 'required|exists:classes,id',
+                'section_id' => 'required|exists:sections,id',
+                'course_id' => 'required|exists:courses,id',
+                'teacher_id' => 'required|exists:users,id'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['error' => $validator->errors()->first()], 400);
+            }
+
+            // Set timezone to Asia/Karachi
+            date_default_timezone_set('Asia/Karachi');
+
+            // Get today's date for comparison
+            $today = now()->format('Y-m-d');
+
+            $slots = TimeTable::where([
+                'institute_id' => $request->institute_id,
+                'session_id' => $request->session_id,
+                'class_id' => $request->class_id,
+                'section_id' => $request->section_id,
+                'course_id' => $request->course_id
+            ])
+            ->orderBy('date', 'desc')
+            ->orderBy('slot_times')
+            ->get();
+
+            if ($slots->isEmpty()) {
+                return response()->json([]);
+            }
+
+            // Get existing attendance records
+            $attendanceRecords = Attendance::where([
+                'institute_id' => $request->institute_id,
+                'session_id' => $request->session_id,
+                'class_id' => $request->class_id,
+                'section_id' => $request->section_id,
+                'course_id' => $request->course_id,
+                'teacher_id' => $request->teacher_id
+            ])
+            ->select('date', 'slot_times')
+            ->get()
+            ->groupBy(function($attendance) {
+                return $attendance->date->format('Y-m-d') . '_' . $attendance->slot_times;
+            });
+
+            $formattedSlots = [];
+            foreach ($slots as $slot) {
+                $timeSlots = explode(',', $slot->slot_times);
+                foreach ($timeSlots as $timeSlot) {
+                    $timeSlot = trim($timeSlot);
+                    $slotDate = Carbon::parse($slot->date)->format('Y-m-d');
+                    $key = $slotDate . '_' . $timeSlot;
+                    $hasAttendance = $attendanceRecords->has($key);
+
+                    $formattedSlots[] = [
+                        'id' => $slot->id,
+                        'date' => $slotDate,
+                        'slot_times' => $timeSlot,
+                        'class_id' => $request->class_id,
+                        'section_id' => $request->section_id,
+                        'course_id' => $request->course_id,
+                        'teacher_id' => $request->teacher_id,
+                        'status' => $hasAttendance ? 'Uploaded' : 'Available',
+                        'can_edit' => $hasAttendance && $slotDate === $today
+                    ];
+                }
+            }
+
+            return response()->json($formattedSlots);
+        } catch (\Exception $e) {
+            \Log::error('Error in getTimeSlots: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to load time slots'], 500);
+        }
     }
 }

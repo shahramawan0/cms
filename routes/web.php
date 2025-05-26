@@ -218,14 +218,14 @@ Route::prefix('lectures')->group(function () {
 
 });
 // attendence
-Route::group(['middleware' => ['auth']], function() {
-    // Attendance routes
+Route::middleware(['auth'])->group(function () {
     Route::get('attendances', [AttendanceController::class, 'index'])->name('attendances.index');
     Route::post('attendances/students', [AttendanceController::class, 'getStudents'])->name('attendances.students');
     Route::get('attendances/dropdowns', [AttendanceController::class, 'getDropdowns'])->name('attendances.dropdowns');
     Route::get('attendances/timetable', [AttendanceController::class, 'getTimetable'])->name('attendances.timetable');
     Route::post('attendances/mark', [AttendanceController::class, 'markAttendance'])->name('attendances.mark');
-
+    Route::get('attendances/courses', [AttendanceController::class, 'getCourses'])->name('attendances.courses');
+    Route::get('attendances/slots', [AttendanceController::class, 'getTimeSlots'])->name('attendances.slots');
     Route::get('attendances/report', [AttendanceController::class, 'report'])->name('attendances.report');
     Route::post('attendances/report/generate', [AttendanceController::class, 'generateReport'])->name('attendances.report.generate');
     Route::post('attendances/report/pdf', [AttendanceController::class, 'generatePdf'])->name('attendances.report.pdf');
