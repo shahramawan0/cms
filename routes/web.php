@@ -268,8 +268,10 @@ Route::group(['middleware' => ['auth']], function() {
 Route::group(['middleware' => ['auth']], function() {
     // Result routes
     Route::get('results', [ResultUploadController::class, 'index'])->name('results.index');
-    Route::post('results/students', [ResultUploadController::class, 'getStudents'])->name('results.students');
+    // Route::post('results/students', [ResultUploadController::class, 'getStudents'])->name('results.students');
     Route::get('results/dropdowns', [ResultUploadController::class, 'getDropdowns'])->name('results.dropdowns');
+    Route::get('results/courses', [ResultUploadController::class, 'getCourses'])->name('results.courses');
+    Route::post('results/students', [ResultUploadController::class, 'getStudents'])->name('results.students');
     Route::post('results/store', [ResultUploadController::class, 'store'])->name('results.store');
     
     // Result View Routes

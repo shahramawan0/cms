@@ -59,7 +59,9 @@ class ResultUploadController extends Controller
                 ->filter()
                 ->map(fn($session) => [
                     'id' => $session->id,
-                    'session_name' => $session->session_name
+                    'session_name' => $session->session_name,
+                    'start_date' => $session->start_date ? date('Y-m-d', strtotime($session->start_date)) : null,
+                    'end_date' => $session->end_date ? date('Y-m-d', strtotime($session->end_date)) : null
                 ])
                 ->values();
 
@@ -843,5 +845,61 @@ class ResultUploadController extends Controller
         return null;
     }
 
-    
+    public function getCourses(Request $request)
+    {
+        try {
+            $user = auth()->user();
+            
+            if (!$request->has('session_id')) {
+                return response()->json([], 200);
+            }
+
+            $instituteId = $user->hasRole('Super Admin') ? $request->institute_id : $user->institute_id;
+            $sessionId = $request->session_id;
+
+            if ($user->hasRole('Super Admin') && !$request->has('institute_id')) {
+                return response()->json([], 200);
+            }
+
+            $query = StudentEnrollment::with(['course', 'class', 'section', 'teacher'])
+                ->where('institute_id', $instituteId)
+                ->where('session_id', $sessionId);
+
+            if ($user->hasRole('Teacher')) {
+                $query->where('teacher_id', $user->id);
+            }
+
+            $enrollments = $query->get();
+
+            if ($enrollments->isEmpty()) {
+                return response()->json([], 200);
+            }
+
+            $courses = $enrollments->map(function ($enrollment) {
+                // Check if all relationships are loaded
+                if (!$enrollment->course || !$enrollment->class || !$enrollment->section || !$enrollment->teacher) {
+                    \Log::error('Missing relationship data for enrollment ID: ' . $enrollment->id);
+                    return null;
+                }
+
+                return [
+                    'id' => $enrollment->course->id,
+                    'course_name' => $enrollment->course->course_name,
+                    'class_name' => $enrollment->class->name,
+                    'section_name' => $enrollment->section->section_name,
+                    'teacher_name' => $enrollment->teacher->name,
+                    'class_id' => $enrollment->class_id,
+                    'section_id' => $enrollment->section_id,
+                    'teacher_id' => $enrollment->teacher_id,
+                    'background_color' => $enrollment->class->background_color ?? '#3490dc'
+                ];
+            })->filter()->unique('id')->values();
+
+            return response()->json($courses);
+        } catch (\Exception $e) {
+            \Log::error('Error in getCourses: ' . $e->getMessage());
+            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            return response()->json([], 200);
+        }
+    }
 }
