@@ -283,8 +283,8 @@ $(document).ready(function() {
             { data: 'action', name: 'action', orderable: false, searchable: false }
         ],
         responsive: true,
-        autoWidth: false,
-        scrollX: true,
+        // autoWidth: false,
+        // scrollX: true,
         language: {
             paginate: {
                 previous: '<i class="fas fa-angle-left"></i>',

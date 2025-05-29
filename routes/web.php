@@ -300,3 +300,24 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/lectures/view/{id}', [LectureController::class, 'view'])->name('lectures.view');
     Route::get('/lectures/download/{id}/{type}', [LectureController::class, 'download'])->name('lectures.download');
 });
+
+// Time Table Routes
+Route::group(['middleware' => ['auth']], function() {
+    Route::get('/time-table', [TimeTableController::class, 'index'])->name('time-table.index');
+    Route::get('/time-table/dropdowns', [TimeTableController::class, 'getDropdowns'])->name('time-table.dropdowns');
+    Route::get('/time-table/time-slot-templates', [TimeTableController::class, 'getTimeSlotTemplates'])->name('time-table.time-slot-templates');
+    Route::get('/time-table/calculate-slots', [TimeTableController::class, 'calculateSlots'])->name('time-table.calculate-slots');
+    Route::post('/time-table/check-availability', [TimeTableController::class, 'checkAvailability'])->name('time-table.check-availability');
+    Route::get('/time-table/load-timetable', [TimeTableController::class, 'loadTimetable'])->name('time-table.load-timetable');
+    Route::post('/time-table', [TimeTableController::class, 'store'])->name('time-table.store');
+    
+    // Edit and Update routes
+    Route::get('/time-table/{id}/edit', [TimeTableController::class, 'edit'])->name('time-table.edit');
+    Route::put('/time-table/{id}', [TimeTableController::class, 'update'])->name('time-table.update');
+    Route::delete('/time-table/{id}', [TimeTableController::class, 'destroy'])->name('time-table.destroy');
+
+    // Report routes
+    Route::get('/time-table/report', [TimeTableController::class, 'report'])->name('time-table.report');
+    Route::get('/time-table/generate-report', [TimeTableController::class, 'generateReport'])->name('time-table.generate-report');
+    Route::post('/time-table/export-report', [TimeTableController::class, 'exportReport'])->name('time-table.export-report');
+});

@@ -9,6 +9,7 @@ use App\Models\StudentEnrollment;
 use App\Models\TimeSlot;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
 use Maatwebsite\Excel\Facades\Excel;
@@ -16,10 +17,14 @@ use App\Exports\UsersExport;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Exports\TimeTableExport;
 use Maatwebsite\Excel\Concerns\FromCollection;
+use Spatie\Permission\Traits\HasRoles;
+
 
 
 class TimeTableController extends Controller
 {
+    use HasRoles;
+
     public function index()
     {
         $user = auth()->user();
@@ -53,16 +58,21 @@ class TimeTableController extends Controller
                 ->map(function ($session) {
                     return [
                         'id' => $session->id,
-                        'name' => $session->session_name
+                        'name' => $session->session_name,
+                        'start_date' => $session->start_date,
+                        'end_date' => $session->end_date
                     ];
                 })
                 ->values();
 
-            // Get classes if session is provided
-            if ($request->has('session_id')) {
+            // If include_all is true or session_id is provided, get all related data
+            if ($request->has('include_all') || $request->has('session_id')) {
+                $sessionId = $request->session_id;
+                
+                // Get all classes for this institute and session
                 $data['classes'] = StudentEnrollment::with('class')
                     ->where('institute_id', $instituteId)
-                    ->where('session_id', $request->session_id)
+                    ->where('session_id', $sessionId)
                     ->select('class_id')
                     ->distinct()
                     ->get()
@@ -71,63 +81,52 @@ class TimeTableController extends Controller
                     ->map(function ($class) {
                         return [
                             'id' => $class->id,
-                            'name' => $class->name
+                            'name' => $class->name,
+                            'background_color' => $class->background_color ?? '#17a2b8'
                         ];
                     })
                     ->values();
-            }
 
-            // Get sections if class is provided
-            if ($request->has('class_id')) {
+                // Get all sections
                 $data['sections'] = StudentEnrollment::with('section')
                     ->where('institute_id', $instituteId)
-                    ->where('session_id', $request->session_id)
-                    ->where('class_id', $request->class_id)
-                    ->select('section_id')
+                    ->where('session_id', $sessionId)
+                    ->select('class_id', 'section_id')
                     ->distinct()
                     ->get()
-                    ->pluck('section')
-                    ->filter()
-                    ->map(function ($section) {
+                    ->map(function ($enrollment) {
                         return [
-                            'id' => $section->id,
-                            'name' => $section->section_name
+                            'id' => $enrollment->section->id,
+                            'section_name' => $enrollment->section->section_name,
+                            'class_id' => $enrollment->class_id
                         ];
                     })
                     ->values();
-            }
 
-            // Get courses if section is provided
-            if ($request->has('section_id')) {
-                $data['courses'] = StudentEnrollment::with('course')
+                // Get all courses
+                $data['courses'] = StudentEnrollment::with(['course', 'teacher', 'class'])
                     ->where('institute_id', $instituteId)
-                    ->where('session_id', $request->session_id)
-                    ->where('class_id', $request->class_id)
-                    ->where('section_id', $request->section_id)
-                    ->select('course_id')
+                    ->where('session_id', $sessionId)
+                    ->select('class_id', 'section_id', 'course_id', 'teacher_id')
                     ->distinct()
                     ->get()
-                    ->pluck('course')
-                    ->filter()
-                    ->map(function ($course) {
+                    ->map(function ($enrollment) {
                         return [
-                            'id' => $course->id,
-                            'name' => $course->course_name
+                            'id' => $enrollment->course->id,
+                            'course_name' => $enrollment->course->course_name,
+                            'class_id' => $enrollment->class_id,
+                            'section_id' => $enrollment->section_id,
+                            'teacher_id' => $enrollment->teacher_id,
+                            'background_color' => $enrollment->class->background_color ?? '#17a2b8'
                         ];
                     })
                     ->values();
-            }
 
-            // Get teachers if course is provided
-            if ($request->has('course_id')) {
-                $query = StudentEnrollment::with('teacher')
+                // Get all teachers
+                $data['teachers'] = StudentEnrollment::with('teacher')
                     ->where('institute_id', $instituteId)
-                    ->where('session_id', $request->session_id)
-                    ->where('class_id', $request->class_id)
-                    ->where('section_id', $request->section_id)
-                    ->where('course_id', $request->course_id);
-
-                $data['teachers'] = $query->select('teacher_id')
+                    ->where('session_id', $sessionId)
+                    ->select('teacher_id')
                     ->distinct()
                     ->get()
                     ->pluck('teacher')
@@ -143,6 +142,7 @@ class TimeTableController extends Controller
 
             return response()->json($data);
         } catch (\Exception $e) {
+            Log::error('Error in getDropdowns: ' . $e->getMessage());
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
@@ -279,85 +279,86 @@ class TimeTableController extends Controller
     }
 
     public function loadTimetable(Request $request)
-{
-    try {
-        $validator = Validator::make($request->all(), [
-            'institute_id' => 'required|exists:institutes,id',
-            'session_id' => 'required|exists:sessions,id',
-            'class_id' => 'required|exists:classes,id',
-            'section_id' => 'required|exists:sections,id',
-            'week_number' => 'required|integer|min:1|max:4'
-        ]);
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'institute_id' => 'required|exists:institutes,id',
+                'session_id' => 'required|exists:sessions,id',
+                'class_id' => 'required|exists:classes,id',
+                'section_id' => 'required|exists:sections,id',
+                'week_number' => 'required|integer|min:1|max:4'
+            ]);
 
-        if ($validator->fails()) {
-            return response()->json(['error' => $validator->errors()], 400);
-        }
+            if ($validator->fails()) {
+                return response()->json(['error' => $validator->errors()], 400);
+            }
 
-        $timeSlot = TimeSlot::where('session_id', $request->session_id)
-            ->where('week_number', $request->week_number)
-            ->first();
+            $timeSlot = TimeSlot::where('session_id', $request->session_id)
+                ->where('week_number', $request->week_number)
+                ->first();
 
-        if (!$timeSlot) {
-            return response()->json(['error' => 'No time slot template found for this week'], 404);
-        }
+            if (!$timeSlot) {
+                return response()->json(['error' => 'No time slot template found for this week'], 404);
+            }
 
-        $allSlots = $this->calculateTimeSlots(
-            $timeSlot->start_time,
-            $timeSlot->end_time,
-            $timeSlot->break_start_time,
-            $timeSlot->break_end_time,
-            $timeSlot->slot_duration
-        );
+            $allSlots = $this->calculateTimeSlots(
+                $timeSlot->start_time,
+                $timeSlot->end_time,
+                $timeSlot->break_start_time,
+                $timeSlot->break_end_time,
+                $timeSlot->slot_duration
+            );
 
-        $slotTimes = array_map(function ($slot) {
-            return $slot['formatted'];
-        }, $allSlots);
+            $slotTimes = array_map(function ($slot) {
+                return $slot['formatted'];
+            }, $allSlots);
 
-        $timetableEntries = TimeTable::with(['course', 'teacher', 'class', 'section'])
-            ->where('institute_id', $request->institute_id)
-            ->where('session_id', $request->session_id)
-            ->where('class_id', $request->class_id)
-            ->where('section_id', $request->section_id)
-            ->get();
+            $timetableEntries = TimeTable::with(['course', 'teacher', 'class', 'section'])
+                ->where('institute_id', $request->institute_id)
+                ->where('session_id', $request->session_id)
+                ->where('class_id', $request->class_id)
+                ->where('section_id', $request->section_id)
+                ->get();
 
-        $entries = [];
+            $entries = [];
 
-        foreach ($timetableEntries as $entry) {
-            $slotArray = is_array($entry->slot_times) ? $entry->slot_times : explode(',', $entry->slot_times);
-            foreach ($slotArray as $slot) {
-                $entries[] = [
-                    'date' => $entry->date,
-                    'slot_time' => trim($slot),
-                    'course' => $entry->course->course_name ?? 'N/A',
-                    'teacher' => $entry->teacher->name ?? 'N/A',
-                    'class' => $entry->class->name ?? 'N/A',
-                    'section' => $entry->section->section_name ?? 'N/A'
+            foreach ($timetableEntries as $entry) {
+                $slotArray = is_array($entry->slot_times) ? $entry->slot_times : explode(',', $entry->slot_times);
+                foreach ($slotArray as $slot) {
+                    $entries[] = [
+                        'id' => $entry->id,
+                        'date' => $entry->date,
+                        'slot_time' => trim($slot),
+                        'course' => $entry->course->course_name ?? 'N/A',
+                        'teacher' => $entry->teacher->name ?? 'N/A',
+                        'class' => $entry->class->name ?? 'N/A',
+                        'section' => $entry->section->section_name ?? 'N/A',
+                        'background_color' => $entry->class->background_color ?? '#17a2b8'
+                    ];
+                }
+            }
+
+            $now = Carbon::now();
+            $startOfWeek = $now->startOfWeek(Carbon::MONDAY);
+            $dates = [];
+
+            for ($i = 0; $i < 7; $i++) {
+                $date = $startOfWeek->copy()->addDays($i);
+                $dates[] = [
+                    'date' => $date->format('Y-m-d'),
+                    'day' => $date->format('l')
                 ];
             }
+
+            return response()->json([
+                'slots' => $slotTimes,
+                'dates' => $dates,
+                'entries' => $entries
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
         }
-
-        $now = Carbon::now();
-        $startOfWeek = $now->startOfWeek(Carbon::MONDAY);
-        $dates = [];
-
-        for ($i = 0; $i < 7; $i++) {
-            $date = $startOfWeek->copy()->addDays($i);
-            $dates[] = [
-                'date' => $date->format('Y-m-d'),
-                'day' => $date->format('l')
-            ];
-        }
-
-        return response()->json([
-            'slots' => $slotTimes,
-            'dates' => $dates,
-            'entries' => $entries
-        ]);
-    } catch (\Exception $e) {
-        return response()->json(['error' => $e->getMessage()], 500);
     }
-}
-
 
     public function store(Request $request)
     {
@@ -456,7 +457,6 @@ class TimeTableController extends Controller
         }
     }
 
-
     private function calculateTimeSlots($startTime, $endTime, $breakStart, $breakEnd, $duration)
     {
         $slots = [];
@@ -495,404 +495,404 @@ class TimeTableController extends Controller
     }
 
     public function edit($id)
-{
-    try {
-        $timetable = TimeTable::with(['institute', 'session', 'class', 'section', 'course', 'teacher', 'timeSlot'])
-            ->findOrFail($id);
+    {
+        try {
+            $timetable = TimeTable::with(['institute', 'session', 'class', 'section', 'course', 'teacher', 'timeSlot'])
+                ->findOrFail($id);
 
-        // Calculate available slots for the time slot template
-        $slots = $this->calculateTimeSlots(
-            $timetable->timeSlot->start_time,
-            $timetable->timeSlot->end_time,
-            $timetable->timeSlot->break_start_time,
-            $timetable->timeSlot->break_end_time,
-            $timetable->timeSlot->slot_duration
-        );
+            // Calculate available slots for the time slot template
+            $slots = $this->calculateTimeSlots(
+                $timetable->timeSlot->start_time,
+                $timetable->timeSlot->end_time,
+                $timetable->timeSlot->break_start_time,
+                $timetable->timeSlot->break_end_time,
+                $timetable->timeSlot->slot_duration
+            );
 
-        // Get all time slot templates for the session and week
-        $templates = TimeSlot::where('session_id', $timetable->session_id)
-            ->where('week_number', $timetable->week_number)
-            ->orderBy('start_time')
-            ->get()
-            ->map(function ($template) {
-                return [
-                    'id' => $template->id,
-                    'text' => $template->start_time . ' - ' . $template->end_time .
-                        ' (Break: ' . $template->break_start_time . '-' . $template->break_end_time .
-                        ', Duration: ' . $template->slot_duration . ' mins)'
-                ];
-            });
+            // Get all time slot templates for the session and week
+            $templates = TimeSlot::where('session_id', $timetable->session_id)
+                ->where('week_number', $timetable->week_number)
+                ->orderBy('start_time')
+                ->get()
+                ->map(function ($template) {
+                    return [
+                        'id' => $template->id,
+                        'text' => $template->start_time . ' - ' . $template->end_time .
+                            ' (Break: ' . $template->break_start_time . '-' . $template->break_end_time .
+                            ', Duration: ' . $template->slot_duration . ' mins)'
+                    ];
+                });
 
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'timetable' => $timetable,
-                'slots' => $slots,
-                'templates' => $templates,
-                'selected_slots' => explode(',', $timetable->slot_times)
-            ]
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Failed to load timetable data for editing',
-            'error' => $e->getMessage()
-        ], 500);
-    }
-}
-
-public function update(Request $request, $id)
-{
-    $validator = Validator::make($request->all(), [
-        'institute_id' => 'required|exists:institutes,id',
-        'session_id' => 'required|exists:sessions,id',
-        'class_id' => 'required|exists:classes,id',
-        'section_id' => 'required|exists:sections,id',
-        'course_id' => 'required|exists:courses,id',
-        'teacher_id' => 'required|exists:users,id',
-        'date' => 'required|date',
-        'week_number' => 'required|integer|min:1|max:4',
-        'time_slot_id' => 'required|exists:time_slots,id',
-        'slot_times' => 'required|string',
-        'total_slots' => 'required|integer|min:1'
-    ]);
-
-    if ($validator->fails()) {
-        return response()->json(['errors' => $validator->errors()], 422);
-    }
-
-    try {
-        $timetable = TimeTable::findOrFail($id);
-
-        // Check for conflicts excluding the current entry
-        $conflicts = $this->checkForConflicts($request, $id);
-        if ($conflicts->isNotEmpty()) {
             return response()->json([
-                'error' => 'Conflict detected',
-                'conflicts' => $conflicts
-            ], 409);
+                'success' => true,
+                'data' => [
+                    'timetable' => $timetable,
+                    'slots' => $slots,
+                    'templates' => $templates,
+                    'selected_slots' => explode(',', $timetable->slot_times)
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to load timetable data for editing',
+                'error' => $e->getMessage()
+            ], 500);
         }
-
-        $timetable->update([
-            'institute_id' => $request->institute_id,
-            'session_id' => $request->session_id,
-            'class_id' => $request->class_id,
-            'section_id' => $request->section_id,
-            'course_id' => $request->course_id,
-            'teacher_id' => $request->teacher_id,
-            'time_slot_id' => $request->time_slot_id,
-            'date' => $request->date,
-            'week_number' => $request->week_number,
-            'slot_times' => $request->slot_times,
-            'updated_by' => Auth::id()
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Time table slot updated successfully',
-            'data' => $timetable
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'error' => 'Failed to update time table slot',
-            'message' => $e->getMessage()
-        ], 500);
-    }
-}
-
-public function destroy($id)
-{
-    try {
-        $timetable = TimeTable::findOrFail($id);
-        $timetable->delete();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Time table slot deleted successfully'
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Failed to delete time table slot',
-            'error' => $e->getMessage()
-        ], 500);
-    }
-}
-
-private function checkForConflicts(Request $request, $excludeId = null)
-{
-    $slots = explode(',', $request->slot_times);
-    $conflicts = collect();
-
-    // Check for teacher conflicts on the same date
-    $teacherQuery = TimeTable::where('teacher_id', $request->teacher_id)
-        ->where('date', $request->date)
-        ->where(function ($query) use ($slots) {
-            foreach ($slots as $slot) {
-                $query->orWhere('slot_times', 'like', '%' . trim($slot) . '%');
-            }
-        })
-        ->with(['course', 'class', 'section']);
-
-    if ($excludeId) {
-        $teacherQuery->where('id', '!=', $excludeId);
     }
 
-    $teacherConflicts = $teacherQuery->get();
-
-    // Check for class-section conflicts on the same date
-    $classQuery = TimeTable::where('class_id', $request->class_id)
-        ->where('section_id', $request->section_id)
-        ->where('date', $request->date)
-        ->where(function ($query) use ($slots) {
-            foreach ($slots as $slot) {
-                $query->orWhere('slot_times', 'like', '%' . trim($slot) . '%');
-            }
-        })
-        ->with(['course', 'teacher']);
-
-    if ($excludeId) {
-        $classQuery->where('id', '!=', $excludeId);
-    }
-
-    $classConflicts = $classQuery->get();
-
-    return $teacherConflicts->merge($classConflicts);
-}
-
-public function report()
-{
-    $user = auth()->user();
-    $institutes = $user->hasRole('Super Admin') ? Institute::get() : null;
-    
-    return view('timetable.timeTableReport', compact('institutes'));
-}
-
-public function generateReport(Request $request)
-{
-    try {
+    public function update(Request $request, $id)
+    {
         $validator = Validator::make($request->all(), [
             'institute_id' => 'required|exists:institutes,id',
             'session_id' => 'required|exists:sessions,id',
-            'week_number' => 'required|integer|min:1|max:4'
+            'class_id' => 'required|exists:classes,id',
+            'section_id' => 'required|exists:sections,id',
+            'course_id' => 'required|exists:courses,id',
+            'teacher_id' => 'required|exists:users,id',
+            'date' => 'required|date',
+            'week_number' => 'required|integer|min:1|max:4',
+            'time_slot_id' => 'required|exists:time_slots,id',
+            'slot_times' => 'required|string',
+            'total_slots' => 'required|integer|min:1'
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['error' => $validator->errors()], 400);
+            return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        // Get time slot template for the week
-        $timeSlot = TimeSlot::where('session_id', $request->session_id)
-            ->where('week_number', $request->week_number)
-            ->first();
+        try {
+            $timetable = TimeTable::findOrFail($id);
 
-        if (!$timeSlot) {
-            return response()->json(['error' => 'No time slot template found for this week'], 404);
+            // Check for conflicts excluding the current entry
+            $conflicts = $this->checkForConflicts($request, $id);
+            if ($conflicts->isNotEmpty()) {
+                return response()->json([
+                    'error' => 'Conflict detected',
+                    'conflicts' => $conflicts
+                ], 409);
+            }
+
+            $timetable->update([
+                'institute_id' => $request->institute_id,
+                'session_id' => $request->session_id,
+                'class_id' => $request->class_id,
+                'section_id' => $request->section_id,
+                'course_id' => $request->course_id,
+                'teacher_id' => $request->teacher_id,
+                'time_slot_id' => $request->time_slot_id,
+                'date' => $request->date,
+                'week_number' => $request->week_number,
+                'slot_times' => $request->slot_times,
+                'updated_by' => Auth::id()
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Time table slot updated successfully',
+                'data' => $timetable
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to update time table slot',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function destroy($id)
+    {
+        try {
+            $timetable = TimeTable::findOrFail($id);
+            $timetable->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Time table slot deleted successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete time table slot',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    private function checkForConflicts(Request $request, $excludeId = null)
+    {
+        $slots = explode(',', $request->slot_times);
+        $conflicts = collect();
+
+        // Check for teacher conflicts on the same date
+        $teacherQuery = TimeTable::where('teacher_id', $request->teacher_id)
+            ->where('date', $request->date)
+            ->where(function ($query) use ($slots) {
+                foreach ($slots as $slot) {
+                    $query->orWhere('slot_times', 'like', '%' . trim($slot) . '%');
+                }
+            })
+            ->with(['course', 'class', 'section']);
+
+        if ($excludeId) {
+            $teacherQuery->where('id', '!=', $excludeId);
         }
 
-        // Calculate all time slots
-        $allSlots = $this->calculateTimeSlots(
-            $timeSlot->start_time,
-            $timeSlot->end_time,
-            $timeSlot->break_start_time,
-            $timeSlot->break_end_time,
-            $timeSlot->slot_duration
-        );
+        $teacherConflicts = $teacherQuery->get();
 
-        $slotTimes = array_map(function ($slot) {
-            return $slot['formatted'];
-        }, $allSlots);
+        // Check for class-section conflicts on the same date
+        $classQuery = TimeTable::where('class_id', $request->class_id)
+            ->where('section_id', $request->section_id)
+            ->where('date', $request->date)
+            ->where(function ($query) use ($slots) {
+                foreach ($slots as $slot) {
+                    $query->orWhere('slot_times', 'like', '%' . trim($slot) . '%');
+                }
+            })
+            ->with(['course', 'teacher']);
 
-        // Get all classes and sections for this institute and session
-        $classes = StudentEnrollment::with('class')
-            ->where('institute_id', $request->institute_id)
-            ->where('session_id', $request->session_id)
-            ->select('class_id')
-            ->distinct()
-            ->get()
-            ->pluck('class')
-            ->filter()
-            ->values();
+        if ($excludeId) {
+            $classQuery->where('id', '!=', $excludeId);
+        }
 
-        $timetableData = [];
+        $classConflicts = $classQuery->get();
 
-        foreach ($classes as $class) {
-            $sections = StudentEnrollment::with('section')
+        return $teacherConflicts->merge($classConflicts);
+    }
+
+    public function report()
+    {
+        $user = auth()->user();
+        $institutes = $user->hasRole('Super Admin') ? Institute::get() : null;
+        
+        return view('timetable.timeTableReport', compact('institutes'));
+    }
+
+    public function generateReport(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'institute_id' => 'required|exists:institutes,id',
+                'session_id' => 'required|exists:sessions,id',
+                'week_number' => 'required|integer|min:1|max:4'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['error' => $validator->errors()], 400);
+            }
+
+            // Get time slot template for the week
+            $timeSlot = TimeSlot::where('session_id', $request->session_id)
+                ->where('week_number', $request->week_number)
+                ->first();
+
+            if (!$timeSlot) {
+                return response()->json(['error' => 'No time slot template found for this week'], 404);
+            }
+
+            // Calculate all time slots
+            $allSlots = $this->calculateTimeSlots(
+                $timeSlot->start_time,
+                $timeSlot->end_time,
+                $timeSlot->break_start_time,
+                $timeSlot->break_end_time,
+                $timeSlot->slot_duration
+            );
+
+            $slotTimes = array_map(function ($slot) {
+                return $slot['formatted'];
+            }, $allSlots);
+
+            // Get all classes and sections for this institute and session
+            $classes = StudentEnrollment::with('class')
                 ->where('institute_id', $request->institute_id)
                 ->where('session_id', $request->session_id)
-                ->where('class_id', $class->id)
-                ->select('section_id')
+                ->select('class_id')
                 ->distinct()
                 ->get()
-                ->pluck('section')
+                ->pluck('class')
                 ->filter()
                 ->values();
 
-            foreach ($sections as $section) {
-                $entries = TimeTable::with(['course', 'teacher', 'class', 'section'])
+            $timetableData = [];
+
+            foreach ($classes as $class) {
+                $sections = StudentEnrollment::with('section')
                     ->where('institute_id', $request->institute_id)
                     ->where('session_id', $request->session_id)
                     ->where('class_id', $class->id)
-                    ->where('section_id', $section->id)
-                    ->get();
+                    ->select('section_id')
+                    ->distinct()
+                    ->get()
+                    ->pluck('section')
+                    ->filter()
+                    ->values();
 
-                $formattedEntries = [];
-                
-                foreach ($entries as $entry) {
-                    $slotArray = is_array($entry->slot_times) ? $entry->slot_times : explode(',', $entry->slot_times);
-                    foreach ($slotArray as $slot) {
-                        $formattedEntries[] = [
-                            'date' => $entry->date,
-                            'slot_time' => trim($slot),
-                            'course' => $entry->course->course_name ?? 'N/A',
-                            'teacher' => $entry->teacher->name ?? 'N/A',
-                            'class' => $entry->class->name ?? 'N/A',
-                            'section' => $entry->section->section_name ?? 'N/A'
-                        ];
+                foreach ($sections as $section) {
+                    $entries = TimeTable::with(['course', 'teacher', 'class', 'section'])
+                        ->where('institute_id', $request->institute_id)
+                        ->where('session_id', $request->session_id)
+                        ->where('class_id', $class->id)
+                        ->where('section_id', $section->id)
+                        ->get();
+
+                    $formattedEntries = [];
+                    
+                    foreach ($entries as $entry) {
+                        $slotArray = is_array($entry->slot_times) ? $entry->slot_times : explode(',', $entry->slot_times);
+                        foreach ($slotArray as $slot) {
+                            $formattedEntries[] = [
+                                'date' => $entry->date,
+                                'slot_time' => trim($slot),
+                                'course' => $entry->course->course_name ?? 'N/A',
+                                'teacher' => $entry->teacher->name ?? 'N/A',
+                                'class' => $entry->class->name ?? 'N/A',
+                                'section' => $entry->section->section_name ?? 'N/A'
+                            ];
+                        }
                     }
+
+                    $timetableData[] = [
+                        'class' => $class->name,
+                        'section' => $section->section_name,
+                        'entries' => $formattedEntries
+                    ];
+                }
+            }
+
+            $now = Carbon::now();
+            $startOfWeek = $now->startOfWeek(Carbon::MONDAY);
+            $dates = [];
+
+            for ($i = 0; $i < 7; $i++) {
+                $date = $startOfWeek->copy()->addDays($i);
+                $dates[] = [
+                    'date' => $date->format('Y-m-d'),
+                    'day' => $date->format('l')
+                ];
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'slots' => $slotTimes,
+                    'dates' => $dates,
+                    'timetableData' => $timetableData,
+                    'timeSlot' => $timeSlot
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function exportReport(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'institute_id' => 'required|exists:institutes,id',
+                'session_id' => 'required|exists:sessions,id',
+                'week_number' => 'required|integer|min:1|max:4',
+                'format' => 'required|in:csv,xlsx,pdf'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['error' => $validator->errors()], 400);
+            }
+
+            // Get the report data
+            $reportData = $this->getExportData($request);
+
+            if ($request->format === 'pdf') {
+                $pdf = PDF::loadView('timetable.exportpdf', [
+                    'groupedData' => $reportData['groupedData'],
+                    'weekNumber' => $request->week_number
+                ])->setPaper('a4', 'landscape');
+                
+                return $pdf->download('timetable_week_'.$request->week_number.'.pdf');
+            }
+
+            $export = new TimeTableExport($reportData['flatData']);
+            
+            if ($request->format === 'csv') {
+                return Excel::download($export, 'timetable_week_'.$request->week_number.'.csv');
+            }
+
+            return Excel::download($export, 'timetable_week_'.$request->week_number.'.xlsx');
+
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    private function getExportData($request)
+    {
+        // Get time slot template for the week
+        $timeSlot = TimeSlot::where('session_id', $request->session_id)
+            ->where('week_number', $request->week_number)
+            ->firstOrFail();
+
+        // Get all timetable entries for the criteria
+        $entries = TimeTable::with(['course', 'teacher', 'class', 'section', 'timeSlot'])
+        ->where('institute_id', $request->institute_id)
+        ->where('session_id', $request->session_id)
+        ->whereHas('timeSlot', function ($query) use ($request) {
+            $query->where('week_number', $request->week_number);
+        })
+        ->get();
+
+
+        $flatData = [];
+        $groupedData = [];
+
+        foreach ($entries as $entry) {
+            $slotArray = is_array($entry->slot_times) ? $entry->slot_times : explode(',', $entry->slot_times);
+            
+            foreach ($slotArray as $slot) {
+                $day = Carbon::parse($entry->date)->format('l');
+                $slot = trim($slot);
+                
+                $flatData[] = [
+                    'Class' => $entry->class->name ?? 'N/A',
+                    'Section' => $entry->section->section_name ?? 'N/A',
+                    'Date' => $entry->date,
+                    'Day' => $day,
+                    'Time Slot' => $slot,
+                    'Course' => $entry->course->course_name ?? 'N/A',
+                    'Teacher' => $entry->teacher->name ?? 'N/A'
+                ];
+
+                if (!isset($groupedData[$entry->class->name][$entry->section->section_name])) {
+                    $groupedData[$entry->class->name][$entry->section->section_name] = [];
                 }
 
-                $timetableData[] = [
-                    'class' => $class->name,
-                    'section' => $section->section_name,
-                    'entries' => $formattedEntries
+                $groupedData[$entry->class->name][$entry->section->section_name][] = [
+                    'date' => $entry->date,
+                    'day' => $day,
+                    'slot' => $slot,
+                    'course' => $entry->course->course_name ?? 'N/A',
+                    'teacher' => $entry->teacher->name ?? 'N/A'
                 ];
             }
         }
 
-        $now = Carbon::now();
-        $startOfWeek = $now->startOfWeek(Carbon::MONDAY);
-        $dates = [];
-
-        for ($i = 0; $i < 7; $i++) {
-            $date = $startOfWeek->copy()->addDays($i);
-            $dates[] = [
-                'date' => $date->format('Y-m-d'),
-                'day' => $date->format('l')
-            ];
-        }
-
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'slots' => $slotTimes,
-                'dates' => $dates,
-                'timetableData' => $timetableData,
-                'timeSlot' => $timeSlot
-            ]
-        ]);
-    } catch (\Exception $e) {
-        return response()->json(['error' => $e->getMessage()], 500);
-    }
-}
-
-public function exportReport(Request $request)
-{
-    try {
-        $validator = Validator::make($request->all(), [
-            'institute_id' => 'required|exists:institutes,id',
-            'session_id' => 'required|exists:sessions,id',
-            'week_number' => 'required|integer|min:1|max:4',
-            'format' => 'required|in:csv,xlsx,pdf'
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['error' => $validator->errors()], 400);
-        }
-
-        // Get the report data
-        $reportData = $this->getExportData($request);
-
-        if ($request->format === 'pdf') {
-            $pdf = PDF::loadView('timetable.exportpdf', [
-                'groupedData' => $reportData['groupedData'],
-                'weekNumber' => $request->week_number
-            ])->setPaper('a4', 'landscape');
-            
-            return $pdf->download('timetable_week_'.$request->week_number.'.pdf');
-        }
-
-        $export = new TimeTableExport($reportData['flatData']);
-        
-        if ($request->format === 'csv') {
-            return Excel::download($export, 'timetable_week_'.$request->week_number.'.csv');
-        }
-
-        return Excel::download($export, 'timetable_week_'.$request->week_number.'.xlsx');
-
-    } catch (\Exception $e) {
-        return response()->json(['error' => $e->getMessage()], 500);
-    }
-}
-
-private function getExportData($request)
-{
-    // Get time slot template for the week
-    $timeSlot = TimeSlot::where('session_id', $request->session_id)
-        ->where('week_number', $request->week_number)
-        ->firstOrFail();
-
-    // Get all timetable entries for the criteria
-    $entries = TimeTable::with(['course', 'teacher', 'class', 'section', 'timeSlot'])
-    ->where('institute_id', $request->institute_id)
-    ->where('session_id', $request->session_id)
-    ->whereHas('timeSlot', function ($query) use ($request) {
-        $query->where('week_number', $request->week_number);
-    })
-    ->get();
-
-
-    $flatData = [];
-    $groupedData = [];
-
-    foreach ($entries as $entry) {
-        $slotArray = is_array($entry->slot_times) ? $entry->slot_times : explode(',', $entry->slot_times);
-        
-        foreach ($slotArray as $slot) {
-            $day = Carbon::parse($entry->date)->format('l');
-            $slot = trim($slot);
-            
-            $flatData[] = [
-                'Class' => $entry->class->name ?? 'N/A',
-                'Section' => $entry->section->section_name ?? 'N/A',
-                'Date' => $entry->date,
-                'Day' => $day,
-                'Time Slot' => $slot,
-                'Course' => $entry->course->course_name ?? 'N/A',
-                'Teacher' => $entry->teacher->name ?? 'N/A'
-            ];
-
-            if (!isset($groupedData[$entry->class->name][$entry->section->section_name])) {
-                $groupedData[$entry->class->name][$entry->section->section_name] = [];
+        // Sort grouped data by date and time slot
+        foreach ($groupedData as $className => $sections) {
+            foreach ($sections as $sectionName => $entries) {
+                usort($groupedData[$className][$sectionName], function($a, $b) {
+                    $dateCompare = strcmp($a['date'], $b['date']);
+                    if ($dateCompare !== 0) return $dateCompare;
+                    return strcmp($a['slot'], $b['slot']);
+                });
             }
-
-            $groupedData[$entry->class->name][$entry->section->section_name][] = [
-                'date' => $entry->date,
-                'day' => $day,
-                'slot' => $slot,
-                'course' => $entry->course->course_name ?? 'N/A',
-                'teacher' => $entry->teacher->name ?? 'N/A'
-            ];
         }
-    }
 
-    // Sort grouped data by date and time slot
-    foreach ($groupedData as $className => $sections) {
-        foreach ($sections as $sectionName => $entries) {
-            usort($groupedData[$className][$sectionName], function($a, $b) {
-                $dateCompare = strcmp($a['date'], $b['date']);
-                if ($dateCompare !== 0) return $dateCompare;
-                return strcmp($a['slot'], $b['slot']);
-            });
-        }
+        return [
+            'flatData' => $flatData,
+            'groupedData' => $groupedData,
+            'timeSlot' => $timeSlot
+        ];
     }
-
-    return [
-        'flatData' => $flatData,
-        'groupedData' => $groupedData,
-        'timeSlot' => $timeSlot
-    ];
-}
 
     public function slotindex()
     {
