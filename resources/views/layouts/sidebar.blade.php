@@ -98,7 +98,7 @@
 						<ul aria-expanded="false">
 							 <li><a href="{{ route('enrollments.index') }}">Student Enrollment</a></li>
 							 
-							 <li><a href="{{ route('teacher.enrollments.index') }}">Teacher Enrollment</a></li>
+							 <li><a href="{{ route('teacher.enrollments.form') }}">Teacher Enrollment</a></li>
 						</ul>
 					</li>
 					@endif

@@ -529,6 +529,11 @@ $(document).ready(function() {
         $('.course-item').removeClass('active');
         $('#checkAvailabilityBtn').prop('disabled', true);
         $('#addSlotBtn').prop('disabled', true);
+        // Clear hidden card selection fields
+        $('#class_id').val('');
+        $('#section_id').val('');
+        $('#course_id').val('');
+        $('#teacher_id').val('');
     }
 
     // Function to clear all dropdowns
@@ -726,7 +731,23 @@ $(document).ready(function() {
             
             if (slot.isOccupied) {
                 var occupiedInfo = $('<div class="occupied-info small text-danger mt-1"></div>');
-                occupiedInfo.html(`Occupied by: ${slot.occupiedBy.course} (${slot.occupiedBy.teacher})`);
+                // Get unique teacher IDs from occupiedBy array
+                const uniqueTeachers = new Set();
+                if (slot.occupiedBy && Array.isArray(slot.occupiedBy)) {
+                    slot.occupiedBy.forEach(entry => {
+                        if (entry.teacher_id) {
+                            uniqueTeachers.add(entry.teacher_id);
+                        }
+                    });
+                }
+                const teacherCount = uniqueTeachers.size;
+                
+                if (teacherCount > 0) {
+                    occupiedInfo.html(`Occupied by: ${teacherCount} Teacher(s)`);
+                } else {
+                    occupiedInfo.html(`Occupied`); // Fallback if no teacher_id is found for some reason
+                }
+                
                 slotDiv.append(input).append(label).append(occupiedInfo);
             } else {
                 slotDiv.append(input).append(label);
@@ -769,6 +790,8 @@ $(document).ready(function() {
         var sessionId = $('#session_id').val();
         var classId = $('#class_id').val();
         var sectionId = $('#section_id').val();
+        var courseId = $('#course_id').val();
+        var teacherId = $('#teacher_id').val();
         
         if (!selectedSlots || !totalSlots) {
             Toast.fire({
@@ -778,64 +801,8 @@ $(document).ready(function() {
             return;
         }
 
-        // First check if slots are already taken for this date
-        $.ajax({
-            url: "{{ route('time-table.check-availability') }}",
-            type: "POST",
-            data: {
-                institute_id: instituteId,
-                session_id: sessionId,
-                class_id: classId,
-                section_id: sectionId,
-                date: date,
-                week_number: $('#week_number').val(),
-                time_slot_id: $('#time_slot_id').val(),
-                _token: $('meta[name="csrf-token"]').attr('content')
-            },
-            success: function(response) {
-                var selectedSlotsArray = selectedSlots.split(',');
-                var hasConflict = false;
-                var conflictingSlots = [];
-
-                // Check each selected slot against occupied slots
-                selectedSlotsArray.forEach(function(selectedSlot) {
-                    response.slots.forEach(function(slot) {
-                        if (slot.formatted === selectedSlot.trim() && slot.isOccupied) {
-                            hasConflict = true;
-                            conflictingSlots.push({
-                                slot: slot.formatted,
-                                course: slot.occupiedBy.course,
-                                teacher: slot.occupiedBy.teacher
-                            });
-                        }
-                    });
-                });
-
-                if (hasConflict) {
-                    let conflictMessage = 'The following slots are already occupied:<br><br>';
-                    conflictingSlots.forEach(function(conflict) {
-                        conflictMessage += `Slot ${conflict.slot} is occupied by ${conflict.course} (${conflict.teacher})<br>`;
-                    });
-
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Time Slot Conflict',
-                        html: conflictMessage,
-                        confirmButtonText: 'OK'
-                    });
-                    return;
-                }
-
-                // If no conflicts, proceed with adding the time table entry
-                proceedWithTimeTableAdd();
-            },
-            error: function(xhr) {
-                Toast.fire({
-                    icon: 'error',
-                    title: 'Error checking slot availability'
-                });
-            }
-        });
+        // Proceed with adding the time table entry
+        proceedWithTimeTableAdd();
     }
 
     // Function to proceed with adding time table entry after validation
@@ -897,6 +864,25 @@ $(document).ready(function() {
                         icon: 'error',
                         title: 'Please fix the errors in the form'
                     });
+                } else if (xhr.responseJSON && xhr.responseJSON.error === 'Conflict detected') {
+                    // Handle conflict error
+                    var conflicts = xhr.responseJSON.conflicts;
+                    var conflictMessage = 'Conflict detected:<br><br>';
+                    
+                    conflicts.forEach(function(conflict) {
+                        if (conflict.conflict_type === 'class_section_timeslot') {
+                            conflictMessage += `Class-Section Conflict: ${conflict.course ? conflict.course.course_name : 'N/A'} is already assigned to ${conflict.class ? conflict.class.name : 'N/A'}-${conflict.section ? conflict.section.section_name : 'N/A'} on ${conflict.date} with Time Slot Template ID: ${conflict.conflicting_time_slot_id} (${conflict.conflicting_time_slot_name}) and Times: ${conflict.conflicting_slot_times}. Conflicting Entry ID: ${conflict.conflicting_id}.<br>`;
+                        } else if (conflict.conflict_type === 'teacher') {
+                            conflictMessage += `Teacher Conflict: ${conflict.teacher ? conflict.teacher.name : 'N/A'} is already teaching ${conflict.course ? conflict.course.course_name : 'N/A'} on ${conflict.date} with Time Slot Template ID: ${conflict.conflicting_time_slot_id} (${conflict.conflicting_time_slot_name}) and Times: ${conflict.conflicting_slot_times}. Conflicting Entry ID: ${conflict.conflicting_id}.<br>`;
+                        }
+                    });
+                    
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Conflict Detected',
+                        html: conflictMessage.replace(/\n/g, '<br>'),
+                        confirmButtonText: 'OK'
+                    });
                 } else {
                     Toast.fire({
                         icon: 'error',
@@ -915,10 +901,10 @@ $(document).ready(function() {
         var sectionId = $('#section_id').val();
         var weekNumber = $('#view_week').val();
 
-        if (!instituteId || !sessionId || !classId || !sectionId || !weekNumber) {
+        if (!instituteId || !sessionId || !weekNumber) {
             Toast.fire({
                 icon: 'error',
-                title: 'Please select institute, session, class, section and week number'
+                title: 'Please select institute, session, and week number to load timetable.'
             });
             return;
         }

@@ -20,6 +20,8 @@ class DatabaseSeeder extends Seeder
         // ]);
         $this->call([
             SuperAdminSeeder::class,
+            StudentSeeder::class,
+
         ]);
     }
 }

@@ -38,7 +38,7 @@
                     </div>
                     @endif
                     
-                    <table id="assignments-table" class="table table-striped">
+                    {{-- <table id="assignments-table" class="table table-striped">
                         <thead>
                             <tr>
                                 <th>Teacher</th>
@@ -56,7 +56,7 @@
                         <tbody>
                             <!-- Data loaded via AJAX -->
                         </tbody>
-                    </table>
+                    </table> --}}
                 </div>
             </div>
         </div>
@@ -68,89 +68,89 @@
 <script>
 $(document).ready(function() {
     // Initialize DataTable
-    var assignmentsTable = $('#assignments-table').DataTable({
-        processing: true,
-        serverSide: true,
-        ajax: {
-            url: "{{ route('enrollments.data') }}",
-            data: function(d) {
-                @if(auth()->user()->hasRole('Super Admin'))
-                d.institute_id = $('#filter_institute').val();
-                @endif
-            }
-        },
-        columns: [
-            { 
-                data: 'teacher_name',
-    name: 'teacher_name', // <-- match the alias from select
-    orderable: false,
-    searchable: true
-            },
-            { 
-                data: 'institute',
-                name: 'institute.name',
-                orderable: true,
-                searchable: true
-            },
-            { 
-                data: 'session',
-                name: 'session.session_name',
-                orderable: true,
-                searchable: true
-            },
-            { 
-                data: 'class',
-                name: 'class.name',
-                orderable: true,
-                searchable: true
-            },
-            { 
-                data: 'section',
-                name: 'section.section_name',
-                orderable: true,
-                searchable: true
-            },
-            { 
-                data: 'course',
-                name: 'course.course_name',
-                orderable: true,
-                searchable: true
-            },
-            { 
-                data: 'student_count',
-                name: 'student_count',
-                orderable: true,
-                searchable: false
-            },
-            { 
-                data: 'enrollment_date',
-                name: 'enrollment_date',
-                orderable: true,
-                searchable: false
-            },
-            { 
-                data: 'status',
-                name: 'status',
-                orderable: true,
-                searchable: true
-            },
-            { 
-                data: 'action',
-                name: 'action',
-                orderable: false,
-                searchable: false
-            }
-        ],
-        responsive: true,
-        autoWidth: false,
-        language: {
-            paginate: {
-                previous: '<i class="fas fa-angle-left"></i>',
-                next: '<i class="fas fa-angle-right"></i>'
-            }
-        },
-        order: [[0, 'asc']] // Sort by teacher name by default
-    });
+        // var assignmentsTable = $('#assignments-table').DataTable({
+        //     processing: true,
+        //     serverSide: true,
+        //     ajax: {
+        //         url: "{{ route('enrollments.data') }}",
+        //         data: function(d) {
+        //             @if(auth()->user()->hasRole('Super Admin'))
+        //             d.institute_id = $('#filter_institute').val();
+        //             @endif
+        //         }
+        //     },
+        //     columns: [
+        //         { 
+        //             data: 'teacher_name',
+        // name: 'teacher_name', // <-- match the alias from select
+        // orderable: false,
+        // searchable: true
+        //         },
+        //         { 
+        //             data: 'institute',
+        //             name: 'institute.name',
+        //             orderable: true,
+        //             searchable: true
+        //         },
+        //         { 
+        //             data: 'session',
+        //             name: 'session.session_name',
+        //             orderable: true,
+        //             searchable: true
+        //         },
+        //         { 
+        //             data: 'class',
+        //             name: 'class.name',
+        //             orderable: true,
+        //             searchable: true
+        //         },
+        //         { 
+        //             data: 'section',
+        //             name: 'section.section_name',
+        //             orderable: true,
+        //             searchable: true
+        //         },
+        //         { 
+        //             data: 'course',
+        //             name: 'course.course_name',
+        //             orderable: true,
+        //             searchable: true
+        //         },
+        //         { 
+        //             data: 'student_count',
+        //             name: 'student_count',
+        //             orderable: true,
+        //             searchable: false
+        //         },
+        //         { 
+        //             data: 'enrollment_date',
+        //             name: 'enrollment_date',
+        //             orderable: true,
+        //             searchable: false
+        //         },
+        //         { 
+        //             data: 'status',
+        //             name: 'status',
+        //             orderable: true,
+        //             searchable: true
+        //         },
+        //         { 
+        //             data: 'action',
+        //             name: 'action',
+        //             orderable: false,
+        //             searchable: false
+        //         }
+        //     ],
+        //     responsive: true,
+        //     autoWidth: false,
+        //     language: {
+        //         paginate: {
+        //             previous: '<i class="fas fa-angle-left"></i>',
+        //             next: '<i class="fas fa-angle-right"></i>'
+        //         }
+        //     },
+        //     order: [[0, 'asc']] // Sort by teacher name by default
+        // });
 
     @if(auth()->user()->hasRole('Super Admin'))
     $('#filter_institute').change(function() {

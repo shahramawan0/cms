@@ -17,14 +17,9 @@ use App\Exports\UsersExport;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Exports\TimeTableExport;
 use Maatwebsite\Excel\Concerns\FromCollection;
-use Spatie\Permission\Traits\HasRoles;
-
-
 
 class TimeTableController extends Controller
 {
-    use HasRoles;
-
     public function index()
     {
         $user = auth()->user();
@@ -243,20 +238,19 @@ class TimeTableController extends Controller
 
             // Mark occupied slots
             $slotsWithStatus = array_map(function ($slot) use ($timetableEntries, $request) {
-                $isOccupied = false;
-                $occupiedBy = null;
+                $occupyingEntries = collect();
 
                 foreach ($timetableEntries as $entry) {
                     $entrySlots = explode(',', $entry->slot_times);
                     if (in_array($slot['formatted'], $entrySlots)) {
-                        $isOccupied = true;
-                        $occupiedBy = [
+                        $occupyingEntries->push([
                             'course' => $entry->course->course_name ?? 'N/A',
                             'teacher' => $entry->teacher->name ?? 'N/A',
-                            'class' => $entry->class->name ?? 'N/A',
-                            'section' => $entry->section->section_name ?? 'N/A'
-                        ];
-                        break;
+                            'class_id' => $entry->class_id,
+                            'section_id' => $entry->section_id,
+                            'course_id' => $entry->course_id,
+                            'teacher_id' => $entry->teacher_id,
+                        ]);
                     }
                 }
 
@@ -264,8 +258,8 @@ class TimeTableController extends Controller
                     'start' => $slot['start'],
                     'end' => $slot['end'],
                     'formatted' => $slot['formatted'],
-                    'isOccupied' => $isOccupied,
-                    'occupiedBy' => $occupiedBy
+                    'isOccupied' => $occupyingEntries->isNotEmpty(),
+                    'occupiedBy' => $occupyingEntries->values()->all()
                 ];
             }, $allSlots);
 
@@ -284,8 +278,8 @@ class TimeTableController extends Controller
             $validator = Validator::make($request->all(), [
                 'institute_id' => 'required|exists:institutes,id',
                 'session_id' => 'required|exists:sessions,id',
-                'class_id' => 'required|exists:classes,id',
-                'section_id' => 'required|exists:sections,id',
+                'class_id' => 'nullable|exists:classes,id',
+                'section_id' => 'nullable|exists:sections,id',
                 'week_number' => 'required|integer|min:1|max:4'
             ]);
 
@@ -313,12 +307,18 @@ class TimeTableController extends Controller
                 return $slot['formatted'];
             }, $allSlots);
 
-            $timetableEntries = TimeTable::with(['course', 'teacher', 'class', 'section'])
+            $timetableEntriesQuery = TimeTable::with(['course', 'teacher', 'class', 'section'])
                 ->where('institute_id', $request->institute_id)
-                ->where('session_id', $request->session_id)
-                ->where('class_id', $request->class_id)
-                ->where('section_id', $request->section_id)
-                ->get();
+                ->where('session_id', $request->session_id);
+
+            if ($request->filled('class_id')) {
+                $timetableEntriesQuery->where('class_id', $request->class_id);
+            }
+            if ($request->filled('section_id')) {
+                $timetableEntriesQuery->where('section_id', $request->section_id);
+            }
+
+            $timetableEntries = $timetableEntriesQuery->get();
 
             $entries = [];
 
@@ -381,44 +381,6 @@ class TimeTableController extends Controller
         }
 
         try {
-            // Check if record exists for same combination (without slot_times check yet)
-            $existing = TimeTable::where('institute_id', $request->institute_id)
-                ->where('session_id', $request->session_id)
-                ->where('class_id', $request->class_id)
-                ->where('section_id', $request->section_id)
-                ->where('course_id', $request->course_id)
-                ->where('teacher_id', $request->teacher_id)
-                ->where('date', $request->date)
-                ->where('time_slot_id', $request->time_slot_id)
-                ->first();
-
-            if ($existing) {
-                // Check if slot_times string is exactly same
-                if (trim($existing->slot_times) == trim($request->slot_times)) {
-                    return response()->json([
-                        'error' => 'Duplicate entry',
-                        'message' => 'This timetable entry with the same time slot already exists'
-                    ], 409);
-                } else {
-                    // Append the new slot_times only if it's not already present
-                    $existingSlotTimesArray = explode(',', $existing->slot_times);
-                    $newSlotTimesArray = explode(',', $request->slot_times);
-
-                    $merged = array_unique(array_merge($existingSlotTimesArray, $newSlotTimesArray));
-                    $updatedSlotTimes = implode(',', array_map('trim', $merged));
-
-                    $existing->slot_times = $updatedSlotTimes;
-                    $existing->updated_by = Auth::id();
-                    $existing->save();
-
-                    return response()->json([
-                        'success' => true,
-                        'message' => 'Slot times updated successfully',
-                        'data' => $existing
-                    ]);
-                }
-            }
-
             // Check for conflicts
             $conflicts = $this->checkForConflicts($request);
             if ($conflicts->isNotEmpty()) {
@@ -621,43 +583,78 @@ class TimeTableController extends Controller
 
     private function checkForConflicts(Request $request, $excludeId = null)
     {
-        $slots = explode(',', $request->slot_times);
+        $requestedSlots = array_map('trim', explode(',', $request->slot_times));
         $conflicts = collect();
 
-        // Check for teacher conflicts on the same date
+        // Step 1: Check for Class-Section-Date-Specific Slot Time OVERLAP Conflict
+        $classSectionQuery = TimeTable::where('class_id', $request->class_id)
+            ->where('section_id', $request->section_id)
+            ->where('date', $request->date)
+            ->with(['course', 'teacher', 'class', 'section', 'timeSlot']);
+
+        if ($excludeId) {
+            $classSectionQuery->where('id', '!=', $excludeId);
+        }
+
+        $existingClassSectionEntries = $classSectionQuery->get();
+
+        foreach ($existingClassSectionEntries as $existingEntry) {
+            $existingSlots = array_map('trim', explode(',', $existingEntry->slot_times));
+            $overlap = array_intersect($requestedSlots, $existingSlots);
+
+            if (!empty($overlap)) {
+                $conflicts->push(array_merge($existingEntry->toArray(), [
+                    'conflict_type' => 'class_section_timeslot',
+                    'conflicting_id' => $existingEntry->id,
+                    'conflicting_time_slot_id' => $existingEntry->time_slot_id,
+                    'conflicting_slot_times' => implode(', ', $overlap),
+                    'conflicting_time_slot_name' => $existingEntry->timeSlot ? ($existingEntry->timeSlot->start_time . ' - ' . $existingEntry->timeSlot->end_time) : 'N/A',
+                    'course' => $existingEntry->course->course_name ?? 'N/A',
+                    'teacher' => $existingEntry->teacher->name ?? 'N/A',
+                    'class' => $existingEntry->class->name ?? 'N/A',
+                    'section' => $existingEntry->section->section_name ?? 'N/A',
+                ]));
+            }
+        }
+
+        if ($conflicts->isNotEmpty()) {
+            return $conflicts->unique('conflicting_id');
+        }
+
+        // Step 2: Check for Teacher Double-Booking Specific Slot Time OVERLAP Conflict
         $teacherQuery = TimeTable::where('teacher_id', $request->teacher_id)
             ->where('date', $request->date)
-            ->where(function ($query) use ($slots) {
-                foreach ($slots as $slot) {
-                    $query->orWhere('slot_times', 'like', '%' . trim($slot) . '%');
-                }
-            })
-            ->with(['course', 'class', 'section']);
+            ->with(['course', 'teacher', 'timeSlot']);
 
         if ($excludeId) {
             $teacherQuery->where('id', '!=', $excludeId);
         }
 
-        $teacherConflicts = $teacherQuery->get();
+        $existingTeacherEntries = $teacherQuery->get();
 
-        // Check for class-section conflicts on the same date
-        $classQuery = TimeTable::where('class_id', $request->class_id)
-            ->where('section_id', $request->section_id)
-            ->where('date', $request->date)
-            ->where(function ($query) use ($slots) {
-                foreach ($slots as $slot) {
-                    $query->orWhere('slot_times', 'like', '%' . trim($slot) . '%');
-                }
-            })
-            ->with(['course', 'teacher']);
+        foreach ($existingTeacherEntries as $existingEntry) {
+            $existingSlots = array_map('trim', explode(',', $existingEntry->slot_times));
+            $overlap = array_intersect($requestedSlots, $existingSlots);
 
-        if ($excludeId) {
-            $classQuery->where('id', '!=', $excludeId);
+            if (!empty($overlap)) {
+                $conflicts->push(array_merge($existingEntry->toArray(), [
+                    'conflict_type' => 'teacher',
+                    'conflicting_id' => $existingEntry->id,
+                    'conflicting_time_slot_id' => $existingEntry->time_slot_id,
+                    'conflicting_slot_times' => implode(', ', $overlap),
+                    'conflicting_time_slot_name' => $existingEntry->timeSlot ? ($existingEntry->timeSlot->start_time . ' - ' . $existingEntry->timeSlot->end_time) : 'N/A',
+                    'course' => $existingEntry->course->course_name ?? 'N/A',
+                    'teacher' => $existingEntry->teacher->name ?? 'N/A',
+                ]));
+            }
         }
 
-        $classConflicts = $classQuery->get();
+        if ($conflicts->isNotEmpty()) {
+            return $conflicts->unique('conflicting_id');
+        }
 
-        return $teacherConflicts->merge($classConflicts);
+        // No conflicts found - allow the assignment
+        return collect();
     }
 
     public function report()
