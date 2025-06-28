@@ -39,7 +39,7 @@ use App\Http\Controllers\ResultUploadController;
 */
 
 Route::get('/', function () {
-    return view('welcome');
+    return view('auth.login');
 });
 
 Route::middleware(['auth'])->get('/dashboard', function () {

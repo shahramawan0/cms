@@ -315,7 +315,7 @@
         
         <div class="login-form">
             <h2>Welcome Back</h2>
-            <p>Please enter your credentials to access your account</p>
+            
             
             <form method="POST" action="{{ route('login') }}" id="loginForm">
                 @csrf
@@ -339,22 +339,22 @@
                     @enderror
                 </div>
                 
-                <div class="form-footer">
+                {{-- <div class="form-footer">
                     <div class="remember-me">
                         <input type="checkbox" name="remember" id="remember">
                         <label for="remember">Remember me</label>
                     </div>
                     <a href="#" class="forgot-password">Forgot password?</a>
-                </div>
+                </div> --}}
                 
                 <button type="submit" class="btn" id="loginBtn">
                     <span class="spinner"></span>
                     <span class="btn-text">Sign In</span>
                 </button>
-                
-                <div class="register-link">
+                <p>Please enter these credentials to access your account.<br />Email: superadmin@gmail.com<br />Password: password</p>
+                {{-- <div class="register-link">
                     Don't have an account? <a href="#" id="nav-sign-tab" data-bs-toggle="tab" data-bs-target="#nav-sign">Sign up</a>
-                </div>
+                </div> --}}
             </form>
         </div>
     </div>
